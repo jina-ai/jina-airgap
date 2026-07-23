@@ -270,6 +270,42 @@
       }
     },
     {
+      "id": "jina-reranker-v3.5",
+      "hf_repo": "jinaai/jina-reranker-v3.5",
+      "revision": "e8a93f33f0b22108f8c2364f8484ce3422552fbc",
+      "type": "reranker",
+      "family": "reranker",
+      "parameters": "0.6B",
+      "context": 131072,
+      "modality": "text",
+      "language": "multilingual",
+      "license": "CC-BY-NC-4.0",
+      "release": "2026-07-23",
+      "vram_gb": 3,
+      "description": "Multilingual listwise reranker (Qwen3-0.6B, hybrid sliding-window attention), 0.6B params, 131K context",
+      "tasks": [
+        "reranking"
+      ],
+      "endpoints": [
+        "rank"
+      ],
+      "api_endpoint": "/v1/rerank",
+      "deps": {
+        "transformers": "==4.57.3",
+        "torch": "==2.5.1",
+        "accelerate": "==1.2.1",
+        "huggingface_hub": ">=0.34.0",
+        "numpy": "==1.26.4",
+        "flash-attn": null,
+        "torchvision": "==0.20.1"
+      },
+      "prebuilt": true,
+      "prebuilt_versions": {
+        "cpu": "",
+        "gpu": ""
+      }
+    },
+    {
       "id": "jina-reranker-v3",
       "hf_repo": "jinaai/jina-reranker-v3",
       "revision": "10fb694fc21f7a710a563ff1eb977a460f3868e4",

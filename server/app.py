@@ -984,14 +984,15 @@ def _is_colbert_model() -> bool:
 
 
 def _is_reranker_v3() -> bool:
-    """jina-reranker-v3 is a Qwen3-based listwise reranker with a custom
+    """jina-reranker-v3 / v3.5 are Qwen3-based listwise rerankers with a custom
     JinaForRanking class (auto_map.AutoModel -> modeling.JinaForRanking) that
-    exposes its own ``.rerank(query, documents)``. It is NOT a
-    sentence-transformers CrossEncoder, so it needs a dedicated load + rerank
-    branch separate from the generic reranker path.
+    exposes its own ``.rerank(query, documents)``. They are NOT
+    sentence-transformers CrossEncoders, so they need a dedicated load + rerank
+    branch separate from the generic reranker path. v3.5 is a drop-in upgrade:
+    same class, same interface, per-item truncation baked into its own rerank().
     """
     short = MODEL_ID.split("/")[-1] if MODEL_ID else ""
-    return short == "jina-reranker-v3"
+    return short in ("jina-reranker-v3", "jina-reranker-v3.5")
 
 
 def load_model():
