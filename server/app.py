@@ -45,6 +45,13 @@ import numpy as np
 #    calls don't prompt for interactive confirmation in offline containers.
 # 2. add_generation_mixin_to_remote_model: guard against models without
 #    prepare_inputs_for_generation (embedding-only models like JinaEmbeddingsV5).
+# 3. _patch_mistral_regex (transformers >=4.57.0): unconditionally calls
+#    huggingface_hub.model_info(repo_id) to sniff base-mistral tokenizers by tag,
+#    which raises OfflineModeIsEnabled in an air-gapped container loading by repo
+#    id (e.g. jina-reranker-v3.5, whose custom rerank() re-loads its tokenizer by
+#    name). No Jina model is a base-mistral model, so when offline we skip the
+#    probe and return the tokenizer unchanged — the regex fix is a no-op for
+#    non-mistral tokenizers anyway.
 try:
     from transformers import dynamic_module_utils as _dmu
     _orig_resolve = _dmu.resolve_trust_remote_code
@@ -62,6 +69,17 @@ try:
                 return model_class
             return _orig_add_gen(model_class)
         _af.add_generation_mixin_to_remote_model = _safe_add_gen
+except Exception:
+    pass
+try:
+    from transformers.tokenization_utils_base import PreTrainedTokenizerBase as _PTTB
+    _orig_patch_mistral = getattr(_PTTB, "_patch_mistral_regex", None)
+    if _orig_patch_mistral is not None:
+        def _safe_patch_mistral(tokenizer, *args, **kwargs):
+            if os.environ.get("HF_HUB_OFFLINE") == "1" or os.environ.get("TRANSFORMERS_OFFLINE") == "1":
+                return tokenizer
+            return _orig_patch_mistral(tokenizer, *args, **kwargs)
+        _PTTB._patch_mistral_regex = staticmethod(_safe_patch_mistral)
 except Exception:
     pass
 
