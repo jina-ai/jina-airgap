@@ -95,6 +95,9 @@ Each model has pinned deps in `models/catalog.json`. These pins exist for specif
 | v5-omni-nano, v5-omni-small | `==4.57.0` | Needs `Qwen3VLVisionConfig` (added in 4.57) |
 | v3 | `==4.48.3` | Works with older version, no qwen3 dependency |
 | reranker-v3 | `==4.51.0` | Based on Qwen3 architecture |
+| reranker-v3.5 | `==4.57.3` | Qwen3 with hybrid sliding-window attention; needs `layer_types` (added in 4.55) |
+
+`reranker-v3.5` is also capped from above: 4.57.2 and 4.57.3 each break offline tokenizer loading in a different way (see [Troubleshooting](docs/Troubleshooting.md)), and the server carries a bypass for the 4.57.3 case.
 
 **DO NOT loosen these pins.** HuggingFace model repos ship their own `requirements.txt` that want `transformers>=5.x`. The `download_model.py` script deletes these files from the cache after download to prevent runtime auto-upgrade.
 

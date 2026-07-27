@@ -156,7 +156,7 @@ Generation-level status. Individual model IDs and per-model licenses are in the 
 | Text embedding | `jina-embeddings-v5-text-small` / `-nano` (GA 2026-02-18) | `jina-embeddings-v3` (Maintenance, term to >= 2028-02-18) | v2 base models (Apache-2.0) remain available for license-free evaluation |
 | Multimodal embedding | `jina-embeddings-v5-omni-small` / `-nano` (GA 2026-05-07) | `jina-embeddings-v4` (Legacy; Qwen Research License), `jina-clip-v2` | omni supersedes v4 multimodal |
 | Code embedding | `jina-code-embeddings-1.5b` / `0.5b` (GA 2025-09-01) | - | |
-| Reranker | `jina-reranker-v3.5` (GA 2026-07-27) | `jina-reranker-v3` (GA 2025-10-01), `jina-reranker-m0` (multimodal), `jina-reranker-v2-base-multilingual` | v3 stays the recommended CPU reranker - see [Sizing](Sizing-And-Hardware#reranker-cpu-limits) |
+| Reranker | `jina-reranker-v3.5` (GA 2026-07-27) | `jina-reranker-v3` (GA 2025-10-01), `jina-reranker-m0` (multimodal), `jina-reranker-v2-base-multilingual` | |
 | Reader / HTML-to-Markdown | `ReaderLM-v2` (GA 2025-01-16) | `reader-lm-1.5b` / `-0.5b` | |
 | Vision-language (reader / OCR) | `jina-vlm` (GA 2025-12-04) | - | |
 

@@ -19,9 +19,9 @@ or v4 for biggest]
 1.5B, ~4GB VRAM]
 
     A --> E{Reranking?}
-    E -- top quality, GPU --> R1[jina-reranker-v3.5
+    E -- top quality --> R1[jina-reranker-v3.5
 0.6B, ~3GB VRAM, 131K context]
-    E -- top quality, CPU --> R3[jina-reranker-v3
+    E -- smaller host --> R3[jina-reranker-v3
 597M, ~3GB VRAM]
     E -- fastest --> R2[jina-reranker-v1-turbo-en
 37.8M, CPU OK]
@@ -41,8 +41,8 @@ or v4 for biggest]
 | Multimodal RAG (PDFs with images) | `jina-embeddings-v4` or `v5-omni-small` | image + text in same space |
 | Image search | `jina-clip-v2` | optimized for text + image |
 | Code search | `jina-code-embeddings-1.5b` or `0.5b` | trained on code |
-| Reranking (GPU) | `jina-reranker-v3.5` | best quality, long context |
-| Reranking (CPU) | `jina-reranker-v3` | v3.5's larger per-document window needs a GPU |
+| Reranking | `jina-reranker-v3.5` | best quality, long context |
+| Reranking on a memory-tight host | `jina-reranker-v3` | lighter host-RAM profile on the `:cpu` image - see [Sizing](Sizing-And-Hardware#reranker-host-memory) |
 | Cheap fast reranking | `jina-reranker-v1-turbo-en` | 38M params, CPU OK |
 | HTML to clean markdown | `ReaderLM-v2` | 512K context, document focused |
 | Legacy English embeddings | `jina-embeddings-v2-base-en` | Apache-2.0, no commercial license needed |
