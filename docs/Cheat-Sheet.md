@@ -36,7 +36,8 @@ curl http://localhost:8080/health
 | `jina-embeddings-v5-text-nano` | first demo, OpenAI replacement | 239M | ~2GB | yes |
 | `jina-embeddings-v5-text-small` | production multilingual | 677M | ~3GB | yes |
 | `jina-embeddings-v5-omni-small` | multimodal RAG | 1.74B | ~8GB | yes |
-| `jina-reranker-v3` | top-K reranking, 131K context | 597M | ~3GB | yes |
+| `jina-reranker-v3.5` | top-K reranking, 131K context, GPU only | 0.6B | ~3GB | yes |
+| `jina-reranker-v3` | top-K reranking, CPU-capable | 597M | ~3GB | yes |
 | `jina-clip-v2` | image + text search | 865M | ~4GB | yes |
 | `jina-embeddings-v3` | stable, widely deployed | 570M | ~3GB | yes |
 
@@ -64,7 +65,7 @@ Full table: [Model Catalog](Model-Catalog).
 
 | License | Models | Commercial use |
 |---|---|---|
-| CC-BY-NC-4.0 | All v5, v4, v3, reranker-v3, clip-v2, ColBERT, code-embeddings, ReaderLM, vlm | needs commercial license - contact [Elastic sales](https://www.elastic.co/contact) |
+| CC-BY-NC-4.0 | All v5, v4, v3, reranker-v3 / -v3.5, clip-v2, ColBERT, code-embeddings, ReaderLM, vlm | needs commercial license - contact [Elastic sales](https://www.elastic.co/contact) |
 | Apache-2.0 | v2 (all variants), v1, clip-v1, reranker v1 | free for any use |
 
 ## Hardware quick rules

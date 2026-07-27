@@ -70,7 +70,7 @@ Short definitions for terms used across the wiki.
 
 ## R
 
-**Reranker** — a model that takes a query + a list of candidate documents and returns relevance scores. Used after retrieval to improve top-K precision. jina-on-prem supports `jina-reranker-v3` and earlier versions.
+**Reranker** — a model that takes a query + a list of candidate documents and returns relevance scores. Used after retrieval to improve top-K precision. jina-on-prem supports `jina-reranker-v3.5` and earlier versions.
 
 **Runtime** — `cpu` or `gpu`. Bundle once per runtime; deploy the appropriate one on the appropriate host.
 

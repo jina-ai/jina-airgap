@@ -89,7 +89,7 @@ You could build your own Docker image with HF transformers and the model weights
 - **Pinned deps per model** with documented reasons (see CONTRIBUTING.md "Known Caveats")
 - **Multi-schema API** (OpenAI + Cohere + Gemini + Voyage) - 1000+ lines of `server/app.py` you don't have to write
 - **Patched custom code** for offline use (delete model repo requirements.txt, monkeypatch `trust_remote_code`)
-- **Tested workflow** for 28 models including the gnarly ones (omni multimodal, Qwen3-based rerankers, ColBERT, ReaderLM, VLM)
+- **Tested workflow** for 29 models including the gnarly ones (omni multimodal, Qwen3-based rerankers, ColBERT, ReaderLM, VLM)
 - **Maintained**: when upstream changes break a model, the catalog is updated and a new bundle is shipped
 
 DIY is a valid path if you're customizing heavily. jina-on-prem is the curated default.

@@ -21,7 +21,7 @@ search]:::ask
 reranking]:::ask
 
     S1 --> M1[jina-embeddings-v5-text-small
-+ jina-reranker-v3]:::rec
++ jina-reranker-v3.5]:::rec
     S2 --> M2[jina-embeddings-v5-text-nano
 drop-in]:::rec
     S3 --> M3[jina-embeddings-v5-text-small
@@ -29,7 +29,7 @@ drop-in]:::rec
     S4 --> M4[jina-clip-v2
 text and image]:::rec
     S5 --> M5[jina-code-embeddings-1.5b]:::rec
-    S6 --> M6[jina-reranker-v3
+    S6 --> M6[jina-reranker-v3.5
 131K context]:::rec
 ```
 
@@ -37,12 +37,12 @@ text and image]:::rec
 
 **Customer**: a bank with an on-prem ES cluster, indexing internal research notes. No outbound internet.
 
-**Recommend**: `jina-embeddings-v5-text-small` (multilingual, 1024-dim) for indexing + `jina-reranker-v3` for top-K reranking. Both fit on a single L4.
+**Recommend**: `jina-embeddings-v5-text-small` (multilingual, 1024-dim) for indexing + `jina-reranker-v3.5` for top-K reranking. Both fit on a single L4.
 
 **Hardware**: 1x NVIDIA L4 (24GB VRAM) per host, 100GB disk for both bundles + cache. Two replicas behind a load balancer if QPS > 50.
 
 **Deploy**:
-1. On a connected machine, run `./scripts/pull-prebuilt.sh jina-embeddings-v5-text-small gpu` and `./scripts/pull-prebuilt.sh jina-reranker-v3 gpu`. Output: two `.tar.gz` files.
+1. On a connected machine, run `./scripts/pull-prebuilt.sh jina-embeddings-v5-text-small gpu` and `./scripts/pull-prebuilt.sh jina-reranker-v3.5 gpu`. Output: two `.tar.gz` files.
 2. Transfer both to the air-gapped host (SCP, USB, or whatever the bank's change-control allows).
 3. `docker load < ...` and `docker run --gpus all -p 8080:8080 ...` for each on different ports.
 4. Wire ES inference service to both:
@@ -58,7 +58,7 @@ PUT _inference/text_embedding/jina-embed
 PUT _inference/rerank/jina-rerank
 {"service": "cohere", "service_settings": {
   "url": "http://rerank-host:8081/v1/rerank",
-  "model_id": "jina-reranker-v3",
+  "model_id": "jina-reranker-v3.5",
   "api_key": "not-needed"
 }}
 ```
@@ -127,7 +127,7 @@ Image must be base64-encoded inline (no URLs - the air-gap forbids outbound fetc
 
 **Hardware**: 1.5b needs ~4GB VRAM. 0.5b runs on CPU for low-volume.
 
-**Tip**: build per-language indexes, then query with `task: "retrieval"`. Code-specific reranking with `jina-reranker-v3` on top of the top-100.
+**Tip**: build per-language indexes, then query with `task: "retrieval"`. Code-specific reranking with `jina-reranker-v3.5` on top of the top-100.
 
 ## Scenario F - Better reranking on top of existing retrieval
 

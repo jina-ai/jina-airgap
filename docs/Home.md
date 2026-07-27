@@ -29,7 +29,7 @@ That's the whole product. The connected machine has internet to fetch model weig
 
 ## What's supported
 
-- **28 models**: Jina embeddings (v5, v4, v3, v2), rerankers, ColBERT, CLIP, ReaderLM, VLM. See [Model Catalog](Model-Catalog).
+- **29 models**: Jina embeddings (v5, v4, v3, v2), rerankers, ColBERT, CLIP, ReaderLM, VLM. See [Model Catalog](Model-Catalog).
 - **4 API schemas simultaneously**: OpenAI, Cohere, Google Gemini, Voyage AI - drop-in for any client.
 - **Multimodal**: text + image + audio + video on omni/clip/v4 models.
 - **GPU and CPU**: same model can be packaged either way.

@@ -1,4 +1,4 @@
-All 28 models supported by jina-on-prem. Auto-generated from [`models/catalog.json`](https://github.com/jina-ai/jina-on-prem/blob/main/models/catalog.json) - re-run `python3 scripts/gen_catalog_md.py` to refresh.
+All 29 models supported by jina-on-prem. Auto-generated from [`models/catalog.json`](https://github.com/jina-ai/jina-on-prem/blob/main/models/catalog.json) - re-run `python3 scripts/gen_catalog_md.py` to refresh.
 
 **License note**: Models tagged `CC-BY-NC-4.0` need a commercial license for production use. Contact [Elastic sales](https://www.elastic.co/contact).
 
@@ -27,6 +27,7 @@ All 28 models supported by jina-on-prem. Auto-generated from [`models/catalog.js
 
 | Model | Prebuilt | Params | VRAM | Context | Output | Modality | License |
 |---|---|---|---|---|---|---|---|
+| `jina-reranker-v3.5` | [cpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-v3.5) / [gpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-v3.5) | 0.6B | ~3GB | 128K | - | text | CC-BY-NC-4.0 |
 | `jina-reranker-v3` | [cpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-v3) / [gpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-v3) | 597M | ~3GB | 128K | - | text | CC-BY-NC-4.0 |
 | `jina-reranker-m0` | [cpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-m0) / [gpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-m0) | 2.4B | ~6GB | 10K | - | multimodal | CC-BY-NC-4.0 |
 | `jina-reranker-v2-base-multilingual` | [cpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-v2-base-multilingual) / [gpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-v2-base-multilingual) | 278M | ~1GB | 1K | - | text | CC-BY-NC-4.0 |
@@ -63,7 +64,7 @@ Quick rules of thumb:
 - **Multilingual production embeddings**: `jina-embeddings-v5-text-small` or `jina-embeddings-v4`.
 - **Multimodal (text + image)**: `jina-embeddings-v5-omni-small` or `jina-clip-v2`.
 - **Code search**: `jina-code-embeddings-1.5b` (or 0.5b for smaller deploys).
-- **Reranking after retrieval**: `jina-reranker-v3` (best quality) or `jina-reranker-v2-base-multilingual` (faster).
+- **Reranking after retrieval**: `jina-reranker-v3.5` (best quality) or `jina-reranker-v2-base-multilingual` (faster, CPU-friendly).
 - **HTML/document cleanup**: `ReaderLM-v2` (largest context) or `reader-lm-0.5b` (lightweight).
 
 See [API Reference](API-Reference) for the request shapes each model expects.

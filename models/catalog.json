@@ -280,7 +280,7 @@
       "modality": "text",
       "language": "multilingual",
       "license": "CC-BY-NC-4.0",
-      "release": "2026-07-23",
+      "release": "2026-07-27",
       "vram_gb": 3,
       "description": "Multilingual listwise reranker (Qwen3-0.6B, hybrid sliding-window attention), 0.6B params, 131K context",
       "tasks": [

@@ -8,7 +8,7 @@ Demonstrates the four common patterns:
 
 Run after starting a container, e.g.:
   docker run -d -p 8080:8080 jina/jina-embeddings-v5-text-nano:cpu
-  docker run -d -p 8081:8080 jina/jina-reranker-v3:cpu   # optional
+  docker run -d -p 8081:8080 jina/jina-reranker-v3.5:gpu  # optional
 
 Then:
   uv pip install openai requests

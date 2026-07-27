@@ -77,7 +77,7 @@ Drops in via OpenAI SDK with `base_url="http://your-host:8080/v1"`.
 
 ## Models
 
-28 models supported: embeddings (v5, v4, v3, v2), rerankers, readers, ColBERT, CLIP, VLM. All 28 models have prebuilt images. Headline picks:
+29 models supported: embeddings (v5, v4, v3, v2), rerankers, readers, ColBERT, CLIP, VLM. All 29 models have prebuilt images. Headline picks:
 
 | Model | Type | Modality | Params | VRAM | Prebuilt |
 |---|---|---|---|---|---|
@@ -87,9 +87,10 @@ Drops in via OpenAI SDK with `base_url="http://your-host:8080/v1"`.
 | `jina-embeddings-v5-omni-nano` | embedding | multimodal | 1.04B | ~5GB | [cpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-embeddings-v5-omni-nano) / [gpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-embeddings-v5-omni-nano) |
 | `jina-embeddings-v5-omni-small` | embedding | multimodal | 1.74B | ~8GB | [cpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-embeddings-v5-omni-small) / [gpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-embeddings-v5-omni-small) |
 | `jina-clip-v2` | embedding | multimodal | 865M | ~4GB | [cpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-clip-v2) / [gpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-clip-v2) |
+| `jina-reranker-v3.5` | reranker | text | 0.6B | ~3GB | [cpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-v3.5) / [gpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-v3.5) |
 | `jina-reranker-v3` | reranker | text | 597M | ~3GB | [cpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-v3) / [gpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-reranker-v3) |
 
-Full catalog with all 28 models, VRAM, context windows, and licenses: [Model Catalog wiki](https://github.com/jina-ai/jina-on-prem/wiki/Model-Catalog) (auto-generated from [`models/catalog.json`](models/catalog.json)).
+Full catalog with all 29 models, VRAM, context windows, and licenses: [Model Catalog wiki](https://github.com/jina-ai/jina-on-prem/wiki/Model-Catalog) (auto-generated from [`models/catalog.json`](models/catalog.json)).
 
 > CC-BY-NC-4.0 models require a commercial license for production use. Contact [Elastic sales](https://www.elastic.co/contact).
 
@@ -212,7 +213,7 @@ jina-on-prem/
 
 - [Quick Start](https://github.com/jina-ai/jina-on-prem/wiki/Quick-Start) - 5-minute walkthrough with a prebuilt image
 - [Bundling Guide](https://github.com/jina-ai/jina-on-prem/wiki/Bundling-Guide) - build your own from a connected machine, GCP L4 walkthrough
-- [Model Catalog](https://github.com/jina-ai/jina-on-prem/wiki/Model-Catalog) - all 28 models with full metadata
+- [Model Catalog](https://github.com/jina-ai/jina-on-prem/wiki/Model-Catalog) - all 29 models with full metadata
 - [API Reference](https://github.com/jina-ai/jina-on-prem/wiki/API-Reference) - four schemas, multimodal inputs, tasks, ES integration
 - [Troubleshooting](https://github.com/jina-ai/jina-on-prem/wiki/Troubleshooting) - common errors and the fixes that work
 - [Product & Model Lifecycle (EOL)](https://github.com/jina-ai/jina-on-prem/wiki/Product-And-Model-Lifecycle) - how long a deployed model is supported, and why models are maintained differently from software
