@@ -56,7 +56,7 @@ def _init() -> Settings:
         short_model_id=model_id.split("/")[-1] if model_id else "",
         device=device,
         offline=offline,
-        dtype=os.environ.get("JINA_DTYPE", "float16"),
+        dtype=os.environ.get("JINA_DTYPE", "float16").lower(),
         cpu_autocast=os.environ.get("JINA_CPU_AUTOCAST", "auto").lower(),
         cpu_threads=cpu_threads,
         license_key=os.environ.get("JINA_LICENSE_KEY", ""),
