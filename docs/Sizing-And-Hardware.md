@@ -32,6 +32,7 @@ or move to bigger GPU]
 | jina-embeddings-v5-text-small | 3 GB | L4 / A10G | T4 OK with smaller batches |
 | jina-embeddings-v5-omni-small | 8 GB | L4 / A10G / A100 | multimodal |
 | jina-embeddings-v4 | 10 GB | A10G / A100 | multimodal, 32K |
+| jina-reranker-v3.5 | 3 GB | L4 | 131K context |
 | jina-reranker-v3 | 3 GB | L4 | 131K context |
 | jina-clip-v2 | 4 GB | L4 | text + image |
 | jina-code-embeddings-1.5b | 4 GB | L4 | |
@@ -40,6 +41,37 @@ or move to bigger GPU]
 Full per-model VRAM in the [Model Catalog](Model-Catalog).
 
 > **L4 is the workhorse**. 24GB, sane price, available in most regions, handles any model except v4-multimodal. Default to it unless A100 latency is required or L4 is unavailable in the target region (see [Troubleshooting -> L4 stockout](Troubleshooting#l4-stockout)).
+
+## Reranker host memory
+
+The listwise rerankers (`jina-reranker-v3`, `jina-reranker-v3.5`) score a block of
+documents in one forward pass instead of one document at a time, so the memory a
+single request needs grows with the **square** of the tokens in that request, not
+linearly with the document count. Size the host from the largest request you
+intend to send, not from the average.
+
+On GPU this is not a practical constraint at L4 size: the full 16-document mixed
+corpus below (~29K tokens, longest document 90,000 characters) completes in 8.4 s
+using 8.7 GB of the L4's 23 GB.
+
+On the `:cpu` image, host RAM is the binding constraint. Measured with
+`jina-reranker-v3.5:cpu` on a `g2-standard-8` (8 vCPU, 31 GB RAM), uniform
+2000-character English documents, one request at a time:
+
+| Documents per request | Total characters | Result |
+|---|---|---|
+| 8 | 16,000 | 34 s |
+| 12 | 24,000 | 67 s |
+| 16 | 32,000 | 108 s |
+| 24 | 48,000 | exceeds 31 GB; the host OOM-kills the container (exit 137) |
+
+Two ways to stay inside a RAM budget: cap documents per request at the client and
+page through the candidate list, or give the host more RAM. On the same 31 GB host,
+`jina-reranker-v3:cpu` completed the mixed corpus that `jina-reranker-v3.5:cpu`
+could not, so it is the safer pick where RAM is fixed and small.
+
+These are the model's own batching defaults, not a jina-on-prem setting - there is
+no knob in the container to change them.
 
 ## Disk planning
 
@@ -66,9 +98,22 @@ Rough throughput on a single L4, batch size 32:
 | v5-text-nano | ~30,000 | ~600 |
 | v5-text-small | ~12,000 | ~240 |
 | v5-omni-small (text only) | ~6,000 | ~120 |
-| reranker-v3 | ~150 doc-query pairs/s | |
 
 (Measure on the customer hardware. These are starting estimates from `scripts/benchmark.py`.)
+
+The listwise rerankers are not covered by `scripts/benchmark.py` - it drives
+`SentenceTransformer.encode()`, and they are not SentenceTransformer models.
+Measured instead through `POST /v1/rerank` on the `:gpu` images, one L4, batch of
+32 documents per request, warmed, median of a 30 s steady-state run:
+
+| Model | 50-token documents | 500-token documents |
+|---|---|---|
+| reranker-v3 | 229 doc-query pairs/s | 21 doc-query pairs/s |
+| reranker-v3.5 | 193 doc-query pairs/s | 12 doc-query pairs/s |
+
+Reranker throughput falls off sharply with document length because the whole
+batch goes through one forward pass. Budget by total tokens per request, not by
+document count.
 
 For higher throughput:
 1. **Batch at the client.** Send 32-256 inputs per request, not one at a time.

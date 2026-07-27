@@ -120,8 +120,29 @@ If `<525`, either update the driver or use the CPU image (`:cpu` tag) which has 
 | v5-omni-nano, v5-omni-small | `==4.57.0` | needs `Qwen3VLVisionConfig` (added in 4.57) |
 | v3 | `==4.48.3` | older base, no qwen3 dependency |
 | reranker-v3 | `==4.51.0` | based on Qwen3 |
+| reranker-v3.5 | `==4.57.3` | Qwen3 with hybrid sliding-window attention; needs `layer_types` (added in 4.55) |
 
 > The bundle phase deletes each model repo's own `requirements.txt` after download. This prevents runtime auto-upgrade by `trust_remote_code` paths that would otherwise call `pip install -r requirements.txt`.
+
+## `OfflineModeIsEnabled` on a reranker
+
+**Symptom**: `jina-reranker-v3.5` raises `huggingface_hub.errors.OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/models/jinaai/jina-reranker-v3.5` while serving a rerank request, even though the container never needs the network.
+
+**Cause**: transformers 4.57.3 sniffs base-mistral tokenizers by calling `huggingface_hub.model_info()` whenever a tokenizer is loaded by repo id instead of by path. The reranker's own `rerank()` re-loads its tokenizer by name, so the probe fires; in an air-gapped container it cannot complete.
+
+**Fix**: none needed with the official images - the server disables the probe when `HF_HUB_OFFLINE=1` or `TRANSFORMERS_OFFLINE=1` is set. If you run `serve` outside Docker, **set one of those variables**, otherwise the bypass stays inactive and you will hit the error.
+
+Only 4.57.3 is affected. Verified on `jina-reranker-v3.5`, loading by repo id with `HF_HUB_OFFLINE=1`:
+
+| transformers | Without the bypass |
+|---|---|
+| 4.56.2 | works |
+| 4.57.0 | works, but the release is yanked on PyPI |
+| 4.57.1 | works |
+| 4.57.2 | fails differently - `FileNotFoundError` from `os.listdir(<repo id>)` |
+| 4.57.3 | fails - `OfflineModeIsEnabled` |
+
+All working versions produce identical scores, so the pin is about offline behaviour, not quality.
 
 ## Wrong endpoint returns 500
 
