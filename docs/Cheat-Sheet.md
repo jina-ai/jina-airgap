@@ -37,7 +37,7 @@ curl http://localhost:8080/health
 | `jina-embeddings-v5-text-small` | production multilingual | 677M | ~3GB | yes |
 | `jina-embeddings-v5-omni-small` | multimodal RAG | 1.74B | ~8GB | yes |
 | `jina-reranker-v3.5` | top-K reranking, 131K context | 0.6B | ~3GB | yes |
-| `jina-reranker-v3` | top-K reranking, smaller per-doc window | 597M | ~3GB | yes |
+| `jina-reranker-v3` | top-K reranking, lighter host RAM on `:cpu` | 597M | ~3GB | yes |
 | `jina-clip-v2` | image + text search | 865M | ~4GB | yes |
 | `jina-embeddings-v3` | stable, widely deployed | 570M | ~3GB | yes |
 

@@ -133,9 +133,12 @@ Image must be base64-encoded inline (no URLs - the air-gap forbids outbound fetc
 
 **Customer**: already has a retrieval pipeline (BM25 or any embedding model), wants to add a strong reranker.
 
-**Recommend**: `jina-reranker-v3` (131K context, multilingual, top-quality).
+**Recommend**: `jina-reranker-v3.5` (131K context, multilingual, top-quality).
 
-**Hardware**: ~3GB VRAM. CPU works for top-K < 50, GPU for higher volumes.
+**Hardware**: ~3GB VRAM on the `:gpu` image. The `:cpu` image is bounded by host
+RAM rather than by top-K alone, because the whole request goes through one
+forward pass - size it from your largest request using
+[Reranker host memory](Sizing-And-Hardware#reranker-host-memory).
 
 **Deploy** alongside existing system, no changes to retrieval:
 
