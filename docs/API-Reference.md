@@ -137,7 +137,7 @@ curl -s http://localhost:8080/v1/rerank \
 Response (Cohere-compatible):
 ```json
 {
-  "model": "jinaai/jina-reranker-v3",
+  "model": "jinaai/jina-reranker-v3.5",
   "results": [
     {"index": 0, "relevance_score": 0.21, "document": {"text": "Python is the most popular..."}},
     {"index": 2, "relevance_score": -0.003, "document": {"text": "PyTorch and TensorFlow..."}}
@@ -205,7 +205,7 @@ PUT _inference/rerank/jina-rerank
   "service": "cohere",
   "service_settings": {
     "url": "http://your-host:8080/v1/rerank",
-    "model_id": "jina-reranker-v3",
+    "model_id": "jina-reranker-v3.5",
     "api_key": "not-needed"
   }
 }

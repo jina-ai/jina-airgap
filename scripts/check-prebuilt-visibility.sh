@@ -24,6 +24,7 @@ MODELS=(
   jina-embeddings-v5-text-small
   jina-embeddings-v5-text-nano
   jina-reranker-v3
+  jina-reranker-v3.5
   jina-embeddings-v3
   jina-clip-v2
 )

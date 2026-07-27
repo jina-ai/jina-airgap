@@ -137,7 +137,7 @@ No third-party imports in the CLI. The model deps install inside the Docker imag
 jina-on-prem/
 - jina-on-prem.py             CLI (stdlib only)
 - models/
-  - catalog.json             28 models with pinned deps, vram, modality
+  - catalog.json             29 models with pinned deps, vram, modality
 - docker/
   - Dockerfile.cpu           two-stage: downloader + runtime
   - Dockerfile.gpu           two-stage with CUDA + cudnn

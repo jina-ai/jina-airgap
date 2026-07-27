@@ -103,7 +103,7 @@ inference service]
     OK --> C[Try a bigger model
 v5-text-small or v5-omni]
     OK --> D[Add a reranker
-jina-reranker-v3]
+jina-reranker-v3.5]
     OK --> E[Bundle your own
 Bundling Guide]
 ```

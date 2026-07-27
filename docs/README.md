@@ -8,7 +8,7 @@ Mirror of the [GitHub Wiki](https://github.com/jina-ai/jina-on-prem/wiki). Edit 
 - [Why Air-Gap?](Why-Airgap.md) - explains the concept, compares with SaaS/VPC endpoints
 - [Quick Start](Quick-Start.md) - 5-minute walkthrough using a prebuilt image
 - [Customer Scenarios](Customer-Scenarios.md) - per-industry playbooks
-- [Picking a Model](Picking-A-Model.md) - decision tree for the 28 models
+- [Picking a Model](Picking-A-Model.md) - decision tree for the 29 models
 - [Sizing & Hardware](Sizing-And-Hardware.md) - capacity planning, k8s, throughput
 - [Bundling Guide](Bundling-Guide.md) - build your own .tar.gz
 - [API Reference](API-Reference.md) - four schemas + reranker + ES integration

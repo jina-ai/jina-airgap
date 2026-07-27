@@ -25,6 +25,7 @@ PREBUILT = {
     "jina-embeddings-v5-text-small",
     "jina-embeddings-v5-text-nano",
     "jina-reranker-v3",
+    "jina-reranker-v3.5",
     "jina-embeddings-v3",
     "jina-clip-v2",
 }
@@ -66,7 +67,7 @@ def render() -> str:
     out: list[str] = []
     # Page title comes from wiki UI, not H1 in body
     out.append(
-        "All 28 models supported by jina-on-prem. Auto-generated from "
+        f"All {len(models)} models supported by jina-on-prem. Auto-generated from "
         "[`models/catalog.json`](https://github.com/jina-ai/jina-on-prem/blob/main/models/catalog.json) - "
         "re-run `python3 scripts/gen_catalog_md.py` to refresh."
     )
@@ -124,7 +125,7 @@ def render() -> str:
     out.append("- **Multilingual production embeddings**: `jina-embeddings-v5-text-small` or `jina-embeddings-v4`.")
     out.append("- **Multimodal (text + image)**: `jina-embeddings-v5-omni-small` or `jina-clip-v2`.")
     out.append("- **Code search**: `jina-code-embeddings-1.5b` (or 0.5b for smaller deploys).")
-    out.append("- **Reranking after retrieval**: `jina-reranker-v3` (best quality) or `jina-reranker-v2-base-multilingual` (faster).")
+    out.append("- **Reranking after retrieval**: `jina-reranker-v3.5` (best quality) or `jina-reranker-v2-base-multilingual` (faster, CPU-friendly).")
     out.append("- **HTML/document cleanup**: `ReaderLM-v2` (largest context) or `reader-lm-0.5b` (lightweight).")
     out.append("")
     out.append("See [API Reference](API-Reference) for the request shapes each model expects.")
