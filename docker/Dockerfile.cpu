@@ -61,6 +61,7 @@ WORKDIR /app
 
 # Copy server code
 COPY server/ /app/
+COPY models/catalog.json /app/catalog.json
 
 # Install model deps from pinned requirements
 # torch and torchvision from CPU index, flash-attn skipped for CPU

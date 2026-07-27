@@ -68,6 +68,7 @@ WORKDIR /app
 
 # Copy server code
 COPY server/ /app/
+COPY models/catalog.json /app/catalog.json
 
 # Install remaining model deps from pinned requirements
 # torch, torchvision already in base image, skip them
