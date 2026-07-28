@@ -39,21 +39,13 @@ PROBE_SCRIPT = REPO / "scripts" / "probe_inside.py"
 # One L4. GPU work is serialised on it regardless of --jobs.
 _gpu = threading.Lock()
 
-EN = (
-    "It is a truth universally acknowledged, that a single man in possession "
-    "of a good fortune, must be in want of a wife."
-)
-ZH = "机器学习模型的生产部署需要考虑多个维度：推理延迟、吞吐量、硬件成本以及模型更新的持续集成与部署流程。"
-QUERY = "How do teams deploy large language models efficiently in production?"
-DOCS = [
-    "Deploying large language models at scale presents significant "
-    "infrastructure challenges, including GPU memory management, batching "
-    "strategies, and latency requirements for real-time inference.",
-    ZH,
-    "The Treaty of Westphalia in 1648 ended the Thirty Years' War and "
-    "established the principle of state sovereignty in European diplomacy.",
-    "def encode_batch(texts, model):\n    return model.encode(texts)\n",
-]
+# The corpus comes from the prober, not from a second copy here. Sources A and
+# C are only comparable on identical input, and two copies of the same four
+# strings drift: an earlier pair differed in DOCS[3] and in EN's length, which
+# made every A-vs-C score comparison on that document, and every A-vs-C vector
+# comparison, a comparison of different text.
+sys.path.insert(0, str(REPO / "scripts"))
+from probe_inside import DOCS, EN, QUERY, ZH  # noqa: E402
 
 # Source C. Deliberately the plainest call each library documents -- the point
 # is to be the model's own behaviour, not the server's.
