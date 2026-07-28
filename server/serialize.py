@@ -5,14 +5,14 @@ Everything here is pure: it turns what ``engine`` produces into the exact JSON
 provider adapters re-use the same encoders, and because the response shape is
 the one thing this rewrite exists to define in a single place.
 
-Captured contract (``api.jina.ai``, 2026-07-27, golden files in work-notes
-``11-onprem-server-rewrite/2026-07-27-server-rewrite/golden/``):
+The envelope, as ``api.jina.ai`` returns it:
 
     {"model": ..., "object": "list", "usage": {...}, "data": [...]}
     {"model": ..., "object": "list", "usage": {...}, "results": [...]}
 
 Key order matches the wire. It does not affect JSON equality, but it makes a
-diff against a golden file readable.
+diff against a captured response readable. ``tests/test_contracts.py`` pins
+every value here against one.
 """
 
 import base64
