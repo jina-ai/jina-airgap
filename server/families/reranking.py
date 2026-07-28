@@ -103,14 +103,26 @@ class JinaRankingFamily(RerankFamily):
         # Native dtype is bf16; keep it on cuda, use fp32 on cpu because generic
         # x86_64 has no bf16 SIMD.
         dtype = torch.bfloat16 if settings.device == "cuda" else torch.float32
+        # Pinned, not left to the transformers default: eager attention holds the
+        # whole (heads, N, N) score matrix, which at this model's 16 heads is
+        # 34 GB for a 32k-token block and 137 GB for a 64k one -- and listwise
+        # reranking packs documents until the block fills. sdpa never
+        # materialises it. The default resolves to sdpa today, but "today"
+        # spans transformers 4.44 to 5.7 across this catalogue, and a silent
+        # fallback would surface as an unexplained OOM rather than a config
+        # mistake. Logged below for the same reason.
         model = AutoModel.from_pretrained(
             self.spec.hf_repo,
             trust_remote_code=True,
             torch_dtype=dtype,
             low_cpu_mem_usage=True,
+            attn_implementation="sdpa",
         )
         self.model = model.to(settings.device).eval()
-        logger.info(f"Loaded as JinaForRanking: {self.spec.hf_repo} dtype={dtype}")
+        attn = getattr(model.config, "_attn_implementation", "unknown")
+        logger.info(
+            f"Loaded as JinaForRanking: {self.spec.hf_repo} dtype={dtype} attn={attn}"
+        )
 
     def rank(
         self, query: str, documents: list[str], top_n: Optional[int]
