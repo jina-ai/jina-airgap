@@ -1,16 +1,17 @@
 name: Build and push Docker images
 
 # Builds all prebuilt model images and pushes them to GHCR.
-# CPU images are built as multi-arch manifests (linux/amd64 + linux/arm64) using
-# QEMU emulation on the amd64 runner. GPU images are amd64-only because the
-# pytorch/pytorch CUDA base image and the flash-attn prebuilt wheels are x86-64 only.
+#
+# CPU images: built natively on ubuntu-24.04 (amd64) AND ubuntu-24.04-arm (arm64)
+# in parallel, then merged into a single multi-arch manifest by the merge-cpu job.
+# No QEMU emulation — each platform is compiled and tested on real hardware.
+#
+# GPU images: amd64-only (pytorch/pytorch CUDA base and flash-attn prebuilt
+# wheels are x86-64 only). Built and pushed directly to the final tag.
 #
 # Trigger manually via the Actions tab, or automatically on version tags.
 # Use the "models" input to build a single model first to validate before a
-# full run (28 models x 2 variants = 56 images; each takes 20-60 min).
-#
-# Note: for faster arm64 builds, replace the QEMU approach with a matrix of
-# native runners (ubuntu-24.04 + ubuntu-24.04-arm) and a manifest-merge job.
+# full run (28 models x 2 cpu platforms + 28 gpu builds = up to 84 build jobs).
 
 on:
   workflow_dispatch:
@@ -39,7 +40,8 @@ jobs:
   generate-matrix:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.gen.outputs.matrix }}
+      build_matrix: ${{ steps.gen.outputs.build_matrix }}
+      cpu_model_matrix: ${{ steps.gen.outputs.cpu_model_matrix }}
     steps:
       - uses: actions/checkout@v4
       - id: gen
@@ -47,38 +49,58 @@ jobs:
           VARIANTS: ${{ inputs.variants || 'cpu,gpu' }}
           ONLY_MODELS: ${{ inputs.models || '' }}
         run: |
-          matrix=$(python3 - <<'PY'
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json, os
           want = {v.strip() for v in os.environ["VARIANTS"].split(",") if v.strip()}
           only = {m.strip() for m in os.environ.get("ONLY_MODELS", "").split(",") if m.strip()}
           cat = json.load(open("models/catalog.json"))
-          rows = []
+
+          build_rows = []
+          cpu_model_ids = []
+
           for m in cat["models"]:
               if not m.get("prebuilt"):
                   continue
               if only and m["id"] not in only:
                   continue
               for variant in (m.get("prebuilt_versions") or {}):
-                  if variant in want:
-                      rows.append({"model_id": m["id"], "variant": variant})
-          print(json.dumps({"include": rows}))
+                  if variant not in want:
+                      continue
+                  if variant == "cpu":
+                      # Two native-runner builds per CPU model, merged afterwards.
+                      build_rows.append({
+                          "model_id": m["id"], "variant": "cpu",
+                          "platform": "linux/amd64", "runner": "ubuntu-24.04",
+                          "push_tag": "cpu-amd64",
+                      })
+                      build_rows.append({
+                          "model_id": m["id"], "variant": "cpu",
+                          "platform": "linux/arm64", "runner": "ubuntu-24.04-arm",
+                          "push_tag": "cpu-arm64",
+                      })
+                      if m["id"] not in cpu_model_ids:
+                          cpu_model_ids.append(m["id"])
+                  elif variant == "gpu":
+                      # GPU is amd64-only; push directly to the final tag.
+                      build_rows.append({
+                          "model_id": m["id"], "variant": "gpu",
+                          "platform": "linux/amd64", "runner": "ubuntu-24.04",
+                          "push_tag": "gpu",
+                      })
+
+          print(f"build_matrix={json.dumps({'include': build_rows})}")
+          print(f"cpu_model_matrix={json.dumps({'include': [{'model_id': mid} for mid in cpu_model_ids]})}")
           PY
-          )
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-          echo "$matrix" | python3 -m json.tool
 
   build:
     needs: generate-matrix
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       max-parallel: 6
-      matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.build_matrix) }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -95,6 +117,7 @@ jobs:
         env:
           MODEL_ID: ${{ matrix.model_id }}
           VARIANT: ${{ matrix.variant }}
+          PUSH_TAG: ${{ matrix.push_tag }}
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
           python3 - <<'PY'
@@ -102,6 +125,7 @@ jobs:
 
           model_id = os.environ["MODEL_ID"]
           variant = os.environ["VARIANT"]
+          push_tag = os.environ["PUSH_TAG"]
           repo_owner = os.environ["REPO_OWNER"].lower()
 
           cat = json.load(open("models/catalog.json"))
@@ -114,10 +138,7 @@ jobs:
           with open("docker/model-requirements.txt", "w") as f:
               f.write("\n".join(lines) + "\n" if lines else "# no model-specific deps\n")
 
-          # CPU: multi-arch (amd64 + arm64). GPU: amd64-only (CUDA constraint).
-          platforms = "linux/amd64,linux/arm64" if variant == "cpu" else "linux/amd64"
-
-          image = f"ghcr.io/{repo_owner}/jina-on-prem/{model_id.lower()}:{variant}"
+          image = f"ghcr.io/{repo_owner}/jina-on-prem/{model_id.lower()}:{push_tag}"
           extra_repos = ",".join(model.get("extra_repos", []))
 
           build_args = f"MODEL_ID={model['hf_repo']}\nEXTRA_REPOS={extra_repos}"
@@ -125,7 +146,6 @@ jobs:
               build_args += f"\nDTYPE={model['gpu_dtype']}"
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-              f.write(f"platforms={platforms}\n")
               f.write(f"image={image}\n")
               f.write(f"build_args<<__EOF__\n{build_args}\n__EOF__\n")
           PY
@@ -135,9 +155,34 @@ jobs:
         with:
           context: .
           file: docker/Dockerfile.${{ matrix.variant }}
-          platforms: ${{ steps.meta.outputs.platforms }}
+          platforms: ${{ matrix.platform }}
           push: ${{ github.event_name == 'push' || inputs.push }}
           tags: ${{ steps.meta.outputs.image }}
           build-args: |
             ${{ steps.meta.outputs.build_args }}
             HF_TOKEN=${{ secrets.HF_TOKEN }}
+
+  merge-cpu:
+    needs: [generate-matrix, build]
+    if: ${{ github.event_name == 'push' || inputs.push }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.cpu_model_matrix) }}
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        env:
+          IMAGE_BASE: ghcr.io/${{ github.repository_owner }}/jina-on-prem/${{ matrix.model_id }}
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE_BASE}:cpu" \
+            "${IMAGE_BASE}:cpu-amd64" \
+            "${IMAGE_BASE}:cpu-arm64"
