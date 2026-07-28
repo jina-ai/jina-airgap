@@ -111,9 +111,13 @@ def jina_validation_body(errors: list[dict[str, Any]]) -> dict:
     """422 bodies, matching the public API's
     ``{detail, request_id, errors: [{field, message, type, input}]}``.
 
-    ``detail`` renders the first error for a human. The public API appends a
-    literal ``"Field errors: : Invalid value"`` to it -- an empty-field
-    f-string artifact on their side, reported rather than reproduced.
+    ``errors[]`` is the machine-readable part and matches key for key.
+    ``detail`` is the human line and deliberately does not: the public API
+    writes ``"Validation errors in 3 fields. Field errors: : Invalid value; :
+    Invalid value; : Invalid value"`` -- a count, then three copies of an
+    empty-field f-string artifact naming neither field nor problem. This says
+    how many went wrong *and* what the first one was, which is the same
+    information a reader actually needs.
     """
     rendered = [
         {
@@ -125,8 +129,13 @@ def jina_validation_body(errors: list[dict[str, Any]]) -> dict:
         for error in errors
     ]
     head = rendered[0] if rendered else {"field": "body", "message": "Invalid request"}
+    count = (
+        f"Validation errors in {len(rendered)} fields, first: "
+        if len(rendered) > 1
+        else "Validation error: "
+    )
     return {
-        "detail": f"Validation error: '{head['field']}' {head['message']}",
+        "detail": f"{count}'{head['field']}' {head['message']}",
         "request_id": request_id(),
         "errors": rendered,
     }

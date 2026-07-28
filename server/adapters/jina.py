@@ -27,7 +27,6 @@ from pydantic import (
     model_validator,
 )
 
-import catalog
 import engine
 import serialize
 from config import settings
@@ -170,14 +169,9 @@ async def create_embeddings(request: EmbeddingsRequest):
     )
     return serialize.embeddings_response(
         settings.short_model_id,
-        serialize.usage(n_tokens, prompt_tokens=wants_prompt_tokens(request)),
+        serialize.usage(n_tokens, prompt_tokens=True),
         embedding_data(vectors, request),
     )
-
-
-def wants_prompt_tokens(request: EmbeddingsRequest) -> bool:
-    rule = engine.SPEC.usage_prompt_tokens
-    return rule == "always" or (rule == "late_chunking" and request.late_chunking)
 
 
 @router.post("/v1/rerank")
@@ -204,17 +198,15 @@ async def rerank(request: RerankRequest):
 
 
 def reject_foreign_model(requested: Optional[str]) -> None:
-    """A Jina model id that is not this image's model is a deployment mistake
-    and must be visible: one image serves one model, so the request would
-    otherwise be answered by the wrong one and echo a model the caller never
-    asked for.
+    """Any `model` that is not this image's is a deployment mistake.
 
-    A name that is not a Jina model at all -- `text-embedding-3-small`,
-    `rerank-v3.5` -- is another provider's, and the container advertises itself
-    as a drop-in for those, so it is accepted and ignored. This is narrower
-    than "400 on any mismatch": that would break the documented
-    `service: openai` Elasticsearch scenario, which is the integration this
-    rewrite exists to fix.
+    The provider adapters exist to share other vendors' *schemas*, not their
+    catalogues -- no OpenAI, Cohere, Voyage or Gemini deployment has a Jina
+    model in it. So `text-embedding-3-small` arriving here is not a drop-in
+    working as intended, it is a client pointed at the wrong container, and
+    answering it with Jina vectors under a name the caller did not ask for
+    hides that. Omitting the field is still fine: there is nothing to disagree
+    with, and one image serves one model.
     """
     if not requested:
         return
@@ -222,13 +214,12 @@ def reject_foreign_model(requested: Optional[str]) -> None:
         return
     if requested.split("/")[-1] == settings.short_model_id:
         return
-    if catalog.is_known(requested):
-        raise BadRequest(
-            f"This image serves '{settings.short_model_id}', not "
-            f"'{requested}'. One model per image: deploy the "
-            f"'{requested}' image, or drop the 'model' field.",
-            field="model",
-        )
+    raise BadRequest(
+        f"This image serves '{settings.short_model_id}', not '{requested}'. "
+        f"One model per image: point the client at the '{requested}' image, "
+        f"set 'model' to '{settings.short_model_id}', or drop the field.",
+        field="model",
+    )
 
 
 def check_task(family, task: Optional[str]) -> None:
@@ -257,16 +248,21 @@ def resolve_task(request: EmbeddingsRequest) -> Optional[str]:
 
 def embedding_items(raw: Union[str, dict, list]) -> list:
     """Turn the request's `input` into what `engine.embed` consumes: strings,
-    decoded media, or a list of parts meaning one fused embedding."""
+    decoded media, or a list of parts meaning one fused embedding.
+
+    The multimodal check runs on what the parts turn out to *be*, not on how
+    the request was written. `{"text": "..."}` and `{"type": "text", "text":
+    "..."}` are Jina's own TextDoc forms and are plain text however they are
+    spelled, so a text-only model must serve them -- checking first rejected
+    them with "this model is text-only", which is both wrong and confusing.
+    """
     items = raw if isinstance(raw, list) else [raw]
     if all(isinstance(item, str) for item in items):
         return items
-    engine.require_multimodal()
-    parsed = []
-    for item in items:
-        parts = parse_openai_item(item)
-        parsed.append(parts if len(parts) > 1 else parts[0])
-    return parsed
+    parsed = [parse_openai_item(item) for item in items]
+    if any(not isinstance(part, str) for parts in parsed for part in parts):
+        engine.require_multimodal()
+    return [parts[0] if len(parts) == 1 else parts for parts in parsed]
 
 
 def check_dimensions(dimensions: Optional[int]) -> None:

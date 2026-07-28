@@ -52,12 +52,19 @@ def encode_vector(vector: np.ndarray, embedding_type: str) -> Union[list, str]:
 
 
 def usage(total_tokens: int, *, prompt_tokens: bool) -> dict:
-    """The `usage` block.
+    """The `usage` block. `prompt_tokens`, when present, is the same number.
 
-    Whether `prompt_tokens` appears is a per-model property of the public API
-    (`usage_prompt_tokens` in the catalog) that `late_chunking` also turns on,
-    so the caller decides; when it does appear it carries the same value as
-    `total_tokens`. Measured, not inferred -- see the golden README's Table A.
+    Embeddings always carry it; reranking never does, which is what
+    `api.jina.ai` returns for every reranker.
+
+    On the embeddings side the public API is inconsistent -- v2 and CLIP always
+    emit it, v3 emits it only under `late_chunking` or when `input` is a dict,
+    v4 never does -- and reproducing that faithfully would mean a response
+    envelope that changes with the request's syntax. It is emitted
+    unconditionally instead: it is a duplicate of `total_tokens`, so a client
+    loses nothing, and OpenAI's own schema declares it required, so a client
+    reading `usage.prompt_tokens` through an OpenAI SDK gets an int rather than
+    None.
     """
     block = {"total_tokens": total_tokens}
     if prompt_tokens:

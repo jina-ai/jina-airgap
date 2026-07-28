@@ -26,14 +26,6 @@ class ModelSpec:
     vram_gb: Optional[int] = None
     gpu_dtype: Optional[str] = None
     extra_repos: Optional[tuple] = None
-    # When this model's public /v1/embeddings response carries
-    # `usage.prompt_tokens` alongside `total_tokens`: "always", "late_chunking"
-    # or "never". Measured per model against api.jina.ai, because it follows
-    # no structural rule -- every v2-base-* and both CLIP models emit it, v3
-    # emits it only under late_chunking, and v4/v5/code/colbert never do (v4
-    # under late_chunking still does not). It is upstream executor drift, so
-    # the honest way to carry it is as measured data.
-    usage_prompt_tokens: str = "never"
 
 
 def _load() -> dict:
@@ -47,13 +39,6 @@ def _load() -> dict:
 
 
 _catalog: dict = _load()
-
-
-def is_known(model_id: str) -> bool:
-    """True if this names a Jina model. Lets a route tell a deployment mistake
-    (a Jina id that is not this image's model) from another provider's model
-    name, which a drop-in endpoint must accept and ignore."""
-    return model_id.split("/")[-1] in _catalog or model_id in _catalog
 
 
 def spec_for(model_id: str) -> ModelSpec:
@@ -81,5 +66,4 @@ def spec_for(model_id: str) -> ModelSpec:
         vram_gb=entry.get("vram_gb"),
         gpu_dtype=entry.get("gpu_dtype"),
         extra_repos=tuple(entry["extra_repos"]) if entry.get("extra_repos") else None,
-        usage_prompt_tokens=entry.get("usage_prompt_tokens", "never"),
     )

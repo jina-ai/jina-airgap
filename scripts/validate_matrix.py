@@ -211,7 +211,6 @@ def validate(spec: dict, runtime: str, args) -> dict:
                 "context",
                 "output_dim",
                 "vram_gb",
-                "usage_prompt_tokens",
                 "matryoshka_dims",
             )
         },

@@ -36,6 +36,14 @@ def check(name, condition, detail=""):
     print(f"  {PASS if condition else FAIL}  {name}{'  ' + detail if detail else ''}")
 
 
+
+def _raises(call):
+    try:
+        call()
+    except Exception as exc:
+        return exc
+    return None
+
 # --- the envelope ----------------------------------------------------------
 # Key order is taken from the golden captures. It does not affect JSON
 # equality, but matching it keeps a diff against a golden file readable.
@@ -289,6 +297,77 @@ if openai_module is not None:
         "OpenAI 5xx uses server_error, the other spec-evidenced type",
         rendered["error"]["type"] == "server_error",
     )
+
+
+# --- usage, after the 2026-07-28 decision ----------------------------------
+# `prompt_tokens` on the public API is a mess: v2 and CLIP always emit it, v3
+# only under late_chunking or a dict `input`, v4 never. It is emitted
+# unconditionally on embeddings instead -- it duplicates `total_tokens`, and
+# OpenAI's schema declares it required. Reranking never carries it, which is
+# what api.jina.ai returns for every reranker.
+
+print("\nUsage block")
+
+check(
+    "embeddings usage carries prompt_tokens, equal to total_tokens",
+    serialize.usage(125, prompt_tokens=True) == {"total_tokens": 125, "prompt_tokens": 125},
+)
+check(
+    "rerank usage carries total_tokens alone",
+    serialize.usage(172, prompt_tokens=False) == {"total_tokens": 172},
+)
+
+# --- the 422 human line ----------------------------------------------------
+# api.jina.ai writes "Validation errors in 3 fields. Field errors: : Invalid
+# value; : Invalid value; : Invalid value" -- a count then three copies of an
+# empty-field artifact. Match errors[] exactly; say something useful in detail.
+
+print("\n422 detail line")
+
+one = errors.jina_validation_body(
+    [{"loc": ("body", "dimensions"), "msg": "Input should be <= 768",
+      "type": "less_than_equal", "input": 2048}]
+)
+many = errors.jina_validation_body(
+    [{"loc": ("body", "input", "str"), "msg": "Input should be a valid string",
+      "type": "string_type", "input": 42},
+     {"loc": ("body", "input", "dict[any,any]"), "msg": "Input should be a valid dictionary",
+      "type": "dict_type", "input": 42},
+     {"loc": ("body", "input", "list"), "msg": "Input should be a valid list",
+      "type": "list_type", "input": 42}]
+)
+check("single error names the field and the problem",
+      one["detail"] == "Validation error: 'body -> dimensions' Input should be <= 768")
+check("multiple errors name the count and the first one",
+      many["detail"] == "Validation errors in 3 fields, first: "
+                        "'body -> input -> str' Input should be a valid string")
+check("no upstream 'Field errors: : Invalid value' artifact",
+      "Invalid value" not in one["detail"] and "Invalid value" not in many["detail"])
+check("errors[] still carries every entry", len(many["errors"]) == 3)
+
+# --- TextDoc is text on any model ------------------------------------------
+# `{"text": ...}` (Jina) and `{"type": "text", "text": ...}` (OpenAI) are the
+# same thing. Parsing them must not require a multimodal model; the earlier
+# code checked modality before parsing and rejected both with "text-only".
+
+print("\nTextDoc input")
+
+try:
+    import media
+
+    check("bare {'text': ...} parses to the string",
+          media._parse_openai_item({"text": "hello"}) == ["hello"])
+    check("{'type': 'text', ...} parses to the string",
+          media._parse_openai_item({"type": "text", "text": "hello"}) == ["hello"])
+    check("a fused content block still returns its parts",
+          media._parse_openai_item({"content": [{"text": "a"}, {"type": "text", "text": "b"}]})
+          == ["a", "b"])
+    check("an unknown part type is still refused",
+          isinstance(_raises(lambda: media._parse_openai_item({"kind": "mystery"})),
+                     errors.BadRequest))
+except ModuleNotFoundError as exc:  # pragma: no cover
+    print(f"  \033[33mSKIP\033[0m media ({exc})")
+
 
 print(f"\n{sum(_results)}/{len(_results)} passed")
 sys.exit(0 if all(_results) else 1)

@@ -199,11 +199,30 @@ EMBEDDING = [
         {"input": [EN], "model": "jina-embeddings-v4"},
     ),
     (
+        # A provider adapter shares that provider's schema, not its catalogue.
+        # No OpenAI deployment has a Jina model in it, so this name means the
+        # client is pointed at the wrong container.
+        "embed_foreign_provider_model_400",
+        "/v1/embeddings",
+        {"input": [EN], "model": "text-embedding-3-small"},
+    ),
+    (
+        # Jina's own TextDoc. The public API accepts it in `input` and so must
+        # a text-only image -- it is text however it is spelled.
+        "embed_input_as_textdoc",
+        "/v1/embeddings",
+        {"input": {"text": EN}},
+    ),
+    (
+        "embed_text_content_part",
+        "/v1/embeddings",
+        {"input": [{"type": "text", "text": EN}, {"text": ZH}]},
+    ),
+    (
         "embed_openai_drop_in",
         "/v1/embeddings",
         {
             "input": [EN],
-            "model": "text-embedding-3-small",
             "encoding_format": "float",
             "user": "analytics-1",
         },
@@ -221,13 +240,12 @@ EMBEDDING = [
     (
         "cohere_embed",
         "/v2/embed",
-        {"model": "embed-v4.0", "input_type": "search_document", "texts": [EN, ZH]},
+        {"input_type": "search_document", "texts": [EN, ZH]},
     ),
     (
         "cohere_embed_types",
         "/v2/embed",
         {
-            "model": "embed-v4.0",
             "input_type": "search_query",
             "texts": [EN],
             "embedding_types": ["float", "int8", "uint8", "ubinary", "base64"],
@@ -236,7 +254,12 @@ EMBEDDING = [
     (
         "cohere_embed_no_input_type_422",
         "/v2/embed",
-        {"model": "embed-v4.0", "texts": [EN]},
+        {"texts": [EN]},
+    ),
+    (
+        "cohere_foreign_provider_model_400",
+        "/v2/embed",
+        {"model": "embed-v4.0", "input_type": "search_document", "texts": [EN]},
     ),
     (
         "gemini_flat",
@@ -269,7 +292,6 @@ EMBEDDING = [
         "/v1/multimodalembeddings",
         {
             "inputs": [{"content": [{"type": "text", "text": EN}]}],
-            "model": "voyage-multimodal-3",
             "input_type": "document",
         },
     ),
@@ -284,7 +306,6 @@ EMBEDDING = [
                     ]
                 }
             ],
-            "model": "voyage-multimodal-3",
         },
     ),
 ]
@@ -346,13 +367,12 @@ RERANK = [
     (
         "cohere_rerank",
         "/v2/rerank",
-        {"model": "rerank-v3.5", "query": QUERY, "documents": DOCS, "top_n": 2},
+        {"query": QUERY, "documents": DOCS, "top_n": 2},
     ),
     (
         "cohere_rerank_max_tokens",
         "/v2/rerank",
         {
-            "model": "rerank-v3.5",
             "query": QUERY,
             "documents": DOCS,
             "max_tokens_per_doc": 24,
@@ -361,7 +381,12 @@ RERANK = [
     (
         "cohere_rerank_empty_422",
         "/v2/rerank",
-        {"model": "rerank-v3.5", "query": QUERY, "documents": []},
+        {"query": QUERY, "documents": []},
+    ),
+    (
+        "cohere_rerank_foreign_provider_model_400",
+        "/v2/rerank",
+        {"model": "rerank-v3.5", "query": QUERY, "documents": DOCS},
     ),
 ]
 

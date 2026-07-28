@@ -156,7 +156,10 @@ def _parse_content_part(part: dict) -> list:
 
     t = part.get("type", "")
 
-    if t == "text":
+    # `{"type": "text", ...}` is OpenAI's spelling; a bare `{"text": ...}` with
+    # no discriminator is Jina's own TextDoc, which the public API accepts in
+    # `input` and which `documents` already accepts on the rerank side.
+    if t == "text" or (not t and "text" in part):
         return [part.get("text", "")]
 
     # Elastic Inference Service: {"type": "image", "format": "base64", "value": "..."}
