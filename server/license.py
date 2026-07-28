@@ -139,7 +139,9 @@ def issue(sub: str, days: int, model: str = "*", secret: Optional[str] = None) -
         "model": model,
         "v": 1,
     }
-    payload_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    payload_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode(
+        "utf-8"
+    )
     sec = secret.encode("utf-8") if secret is not None else _secret()
     sig = _sign_with(sec, payload_bytes)
     return f"{PREFIX}{_b64e(payload_bytes)}.{sig}"
@@ -147,7 +149,7 @@ def issue(sub: str, days: int, model: str = "*", secret: Optional[str] = None) -
 
 def inspect(key: str) -> dict:
     """Decode a key WITHOUT verifying the signature (for humans / logging)."""
-    body = key[len(PREFIX):] if key.startswith(PREFIX) else key
+    body = key[len(PREFIX) :] if key.startswith(PREFIX) else key
     token, _, _sig = body.partition(".")
     return json.loads(_b64d(token))
 
@@ -163,7 +165,7 @@ def validate(key: Optional[str], model_id: str = "") -> tuple[bool, str, dict]:
         if not key:
             return False, "no_license", {}
 
-        body = key[len(PREFIX):] if key.startswith(PREFIX) else key
+        body = key[len(PREFIX) :] if key.startswith(PREFIX) else key
         token, sep, sig = body.partition(".")
         if not sep or not token or not sig:
             return False, "malformed_license", {}
@@ -217,15 +219,33 @@ def decide(key: Optional[str], model_id: str = "") -> dict:
     ok, reason, payload = validate(key, model_id)
 
     if m == "off":
-        return {"allow": True, "block": False, "reason": "off", "mode": m, "payload": payload}
+        return {
+            "allow": True,
+            "block": False,
+            "reason": "off",
+            "mode": m,
+            "payload": payload,
+        }
 
     if m == "warn":
         # Fail-open. Never block. Surface state for logs / health only.
-        return {"allow": True, "block": False, "reason": reason, "mode": m, "payload": payload}
+        return {
+            "allow": True,
+            "block": False,
+            "reason": reason,
+            "mode": m,
+            "payload": payload,
+        }
 
     # enforce
     if ok:
-        return {"allow": True, "block": False, "reason": "ok", "mode": m, "payload": payload}
+        return {
+            "allow": True,
+            "block": False,
+            "reason": "ok",
+            "mode": m,
+            "payload": payload,
+        }
 
     # In enforce mode, an *expired* key still gets a grace window (absorbs
     # clock skew + renewal lag). Signature/scope failures do not get grace.
@@ -233,10 +253,21 @@ def decide(key: Optional[str], model_id: str = "") -> dict:
         d = days_until_expiry(payload)  # negative once expired
         g = grace_days()
         if d is not None and d > -g:
-            return {"allow": True, "block": False, "reason": "expired_in_grace",
-                    "mode": m, "payload": payload}
+            return {
+                "allow": True,
+                "block": False,
+                "reason": "expired_in_grace",
+                "mode": m,
+                "payload": payload,
+            }
 
-    return {"allow": False, "block": True, "reason": reason, "mode": m, "payload": payload}
+    return {
+        "allow": False,
+        "block": True,
+        "reason": reason,
+        "mode": m,
+        "payload": payload,
+    }
 
 
 def status(key: Optional[str], model_id: str = "") -> dict:

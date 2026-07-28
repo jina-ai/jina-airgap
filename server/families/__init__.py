@@ -47,6 +47,37 @@ class Family(ABC):
         self._load_tokenizer()
         self._finalize_cpu_bf16()
 
+    @property
+    def encode_kwargs(self) -> frozenset[str]:
+        """Extra ``encode()`` kwargs this loaded model genuinely consumes.
+
+        sentence-transformers routes ``encode(**kwargs)`` to each module's
+        ``forward()`` filtered by ``module_kwargs`` -- a map it builds from the
+        modules' own signatures -- and silently DROPS anything undeclared. So a
+        request for ``late_chunking`` on a model that has no such parameter
+        would look like a success and return ordinary embeddings. Reading the
+        allowlist is what lets the route refuse truthfully instead.
+        """
+        declared = getattr(self.model, "module_kwargs", None) or {}
+        return frozenset(name for names in declared.values() for name in names)
+
+    @property
+    def known_tasks(self) -> frozenset[str]:
+        """Base task names this model recognises, read off the model itself.
+
+        Not from the catalog's ``tasks`` list: that field is documentation and
+        has drifted -- it says ``techqa`` for code-embeddings where both the
+        public API (``qa.query``) and the model's own prompts (``qa_query``)
+        say ``qa``. Empty means the model exposes nothing to check against, and
+        the task is passed through rather than guessed at.
+        """
+        names = set(
+            getattr(getattr(self.model, "config", None), "task_names", ()) or ()
+        )
+        for key in getattr(self.model, "prompts", None) or ():
+            names.add(str(key).partition(".")[0].partition("_")[0])
+        return frozenset(names)
+
     def autocast(self):
         """Autocast context for encode().
 

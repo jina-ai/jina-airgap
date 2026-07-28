@@ -86,11 +86,18 @@ def build(model: dict, runtime: str, args, root: Path, log_dir: Path) -> dict:
 
     context = make_context(model, runtime, root)
     command = [
-        "docker", "build",
-        "-f", str(context / "docker" / f"Dockerfile.{runtime}"),
-        "--build-arg", f"MODEL_ID={model['hf_repo']}",
-        "--build-arg", f"EXTRA_REPOS={','.join(model.get('extra_repos', []))}",
-        "-t", tag, "-t", local,
+        "docker",
+        "build",
+        "-f",
+        str(context / "docker" / f"Dockerfile.{runtime}"),
+        "--build-arg",
+        f"MODEL_ID={model['hf_repo']}",
+        "--build-arg",
+        f"EXTRA_REPOS={','.join(model.get('extra_repos', []))}",
+        "-t",
+        tag,
+        "-t",
+        local,
     ]
     if runtime == "gpu" and model.get("gpu_dtype"):
         command += ["--build-arg", f"DTYPE={model['gpu_dtype']}"]
@@ -120,7 +127,9 @@ def build(model: dict, runtime: str, args, root: Path, log_dir: Path) -> dict:
         result["size_gb"] = round(int(inspect(tag, "{{.Size}}") or 0) / 1024**3, 2)
         result["image_id"] = inspect(tag, "{{.Id}}")
         if args.push:
-            push = subprocess.run(["docker", "push", tag], capture_output=True, text=True)
+            push = subprocess.run(
+                ["docker", "push", tag], capture_output=True, text=True
+            )
             result["pushed"] = push.returncode == 0
             if push.returncode == 0:
                 result["digest"] = inspect(tag, "{{index .RepoDigests 0}}")
@@ -132,7 +141,8 @@ def build(model: dict, runtime: str, args, root: Path, log_dir: Path) -> dict:
 def inspect(tag: str, fmt: str) -> str:
     out = subprocess.run(
         ["docker", "image", "inspect", tag, "--format", fmt],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     return out.stdout.strip() if out.returncode == 0 else ""
 
@@ -151,14 +161,15 @@ def main() -> int:
         "--push",
         action="store_true",
         help="push the SHA tag. Only for builds that have passed validation -- "
-             "never pushes :cpu / :gpu.",
+        "never pushes :cpu / :gpu.",
     )
     args = parser.parse_args()
 
     if not args.sha:
         args.sha = subprocess.run(
             ["git", "-C", str(REPO), "rev-parse", "--short=7", "HEAD"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         ).stdout.strip()
     if not args.sha:
         print("error: no --sha and not a git checkout", file=sys.stderr)

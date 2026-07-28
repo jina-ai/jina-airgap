@@ -32,15 +32,16 @@ class RerankFamily(Family):
         """
 
     def render_document(self, document: Any) -> Any:
-        """The shape of ``results[].document``.
+        """The shape of ``results[].document``: echo what the caller sent.
 
-        Measured on api.jina.ai the rule is per-family: the CrossEncoder family
-        (v1 / v2 / m0) echoes whatever type the caller sent, while JinaForRanking
-        (v3 / v3.5) always wraps in ``{"text": ...}``. On-prem wraps for
-        everyone, which is right for v3/v3.5 and wrong for the rest; splitting
-        the two is a wire change and lands with the envelope work.
+        Measured on api.jina.ai, this is per-family and not a global rule. The
+        CrossEncoder family mirrors the caller's type -- a bare string in gives
+        a bare string out, ``{"text": ...}`` in gives an object out -- so the
+        base class echoes and ``JinaRankingFamily`` overrides. ColBERT has no
+        public rerank oracle (the public API also lists it under embeddings) and
+        is treated as CrossEncoder-family by analogy.
         """
-        return {"text": document_text(document)}
+        return document
 
 
 class CrossEncoderFamily(RerankFamily):
@@ -90,6 +91,11 @@ class JinaRankingFamily(RerankFamily):
     CrossEncoders. v3.5 is a drop-in upgrade: same class, same interface,
     per-item truncation baked into its own rerank().
     """
+
+    def render_document(self, document: Any) -> Any:
+        """Always an object, whatever the caller sent -- measured on
+        api.jina.ai for both v3 and v3.5, with string and object input."""
+        return {"text": document_text(document)}
 
     def _load(self) -> None:
         from transformers import AutoModel
