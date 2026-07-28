@@ -58,7 +58,21 @@ DOCS = [
 # Source C. Deliberately the plainest call each library documents -- the point
 # is to be the model's own behaviour, not the server's.
 ORACLE = r"""
-import json, os, numpy as np
+import json, os, sys, pathlib, numpy as np
+
+# The two offline shims app.py installs at import. Source C needs both, which
+# is itself a result: neither is defensive.
+#
+# 1. transformers' check_imports resolves a remote-code module's siblings via
+#    importlib.util.find_spec, which does not look inside the HF module cache.
+#    Without this, v5 fails with "requires the following packages that were not
+#    found in your environment: configuration_eurobert" even though the file is
+#    right there in the image.
+for _module in (pathlib.Path(os.environ.get("HF_HOME", "")) / "modules"
+                / "transformers_modules").rglob("*.py"):
+    if str(_module.parent) not in sys.path:
+        sys.path.insert(0, str(_module.parent))
+
 model_id = os.environ["ORACLE_MODEL"]
 runtime  = os.environ["ORACLE_RUNTIME"]
 texts    = json.loads(os.environ["ORACLE_TEXTS"])
@@ -71,11 +85,9 @@ try:
 except Exception as exc:
     out["import_error"] = repr(exc)
 
-# The same guard app.py installs. Not a Jina behaviour: transformers wraps every
-# remote-code AutoModel in a generation mixin and assumes it has
-# prepare_inputs_for_generation, which an embedding-only model does not. Without
-# it, plain sentence-transformers cannot load a v5 model at all -- measured, and
-# the reason this patch exists in the server.
+# 2. transformers wraps every remote-code AutoModel in a generation mixin and
+#    assumes it has prepare_inputs_for_generation, which an embedding-only
+#    model does not.
 try:
     from transformers.models.auto import auto_factory
     _add = getattr(auto_factory, "add_generation_mixin_to_remote_model", None)
