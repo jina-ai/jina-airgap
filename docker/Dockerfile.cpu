@@ -32,7 +32,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY docker/model-requirements.txt /tmp/model-requirements.txt
 RUN TORCH_VER=$(grep -i '^torch==' /tmp/model-requirements.txt | head -1 | sed 's/torch//') && \
     TV_VER=$(grep -i '^torchvision==' /tmp/model-requirements.txt | head -1 | sed 's/torchvision//') && \
-    pip install --no-cache-dir "torch${TORCH_VER}" "torchvision${TV_VER}" --index-url https://download.pytorch.org/whl/cpu
+    if [ "$(uname -m)" = "aarch64" ]; then \
+        pip install --no-cache-dir "torch${TORCH_VER}" "torchvision${TV_VER}"; \
+    else \
+        pip install --no-cache-dir "torch${TORCH_VER}" "torchvision${TV_VER}" --index-url https://download.pytorch.org/whl/cpu; \
+    fi
 RUN grep -v '^\s*#' /tmp/model-requirements.txt | grep -v '^\s*$' | \
     grep -iv '^torch' | grep -iv '^flash-attn' | \
     xargs --no-run-if-empty pip install --no-cache-dir
@@ -67,7 +71,11 @@ COPY server/ /app/
 COPY docker/model-requirements.txt /tmp/model-requirements.txt
 RUN TORCH_VER=$(grep -i '^torch==' /tmp/model-requirements.txt | head -1 | sed 's/torch//') && \
     TV_VER=$(grep -i '^torchvision==' /tmp/model-requirements.txt | head -1 | sed 's/torchvision//') && \
-    pip install --no-cache-dir "torch${TORCH_VER}" "torchvision${TV_VER}" --index-url https://download.pytorch.org/whl/cpu
+    if [ "$(uname -m)" = "aarch64" ]; then \
+        pip install --no-cache-dir "torch${TORCH_VER}" "torchvision${TV_VER}"; \
+    else \
+        pip install --no-cache-dir "torch${TORCH_VER}" "torchvision${TV_VER}" --index-url https://download.pytorch.org/whl/cpu; \
+    fi
 RUN grep -v '^\s*#' /tmp/model-requirements.txt | grep -v '^\s*$' | \
     grep -iv '^torch' | grep -iv '^flash-attn' | \
     xargs --no-run-if-empty pip install --no-cache-dir
