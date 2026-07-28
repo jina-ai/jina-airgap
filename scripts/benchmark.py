@@ -50,9 +50,9 @@ BENCHMARK_CORPUS = [
 ]
 
 MODELS = [
-    ("jinaai/jina-embeddings-v5-text-nano",  "239M"),
+    ("jinaai/jina-embeddings-v5-text-nano", "239M"),
     ("jinaai/jina-embeddings-v5-text-small", "677M"),
-    ("jinaai/jina-embeddings-v5-omni-nano",  "1.04B"),
+    ("jinaai/jina-embeddings-v5-omni-nano", "1.04B"),
     ("jinaai/jina-embeddings-v5-omni-small", "1.74B"),
 ]
 
@@ -77,7 +77,8 @@ def get_gpu_info():
     try:
         result = subprocess.run(
             ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
-            capture_output=True, text=True
+            capture_output=True,
+            text=True,
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -90,6 +91,7 @@ def resolve_model_path(model_id: str) -> str:
     """Download model if needed, patch tokenizer if required, return local path."""
     if model_id in NEEDS_TOKENIZER_PATCH:
         from huggingface_hub import snapshot_download
+
         repo_path = snapshot_download(model_id)
         tc_path = os.path.join(repo_path, "tokenizer_config.json")
         if os.path.exists(tc_path):
@@ -99,7 +101,9 @@ def resolve_model_path(model_id: str) -> str:
                 tc["tokenizer_class"] = "PreTrainedTokenizerFast"
                 with open(tc_path, "w") as f:
                     json.dump(tc, f, indent=2)
-                print(f"  Patched tokenizer_config: TokenizersBackend -> PreTrainedTokenizerFast")
+                print(
+                    f"  Patched tokenizer_config: TokenizersBackend -> PreTrainedTokenizerFast"
+                )
         return repo_path
     return model_id
 
@@ -138,9 +142,16 @@ def apply_optimizations(model, device: str):
     return model
 
 
-def benchmark_model(model_id: str, device: str, batch_size: int = 32, duration_s: float = 10.0, optimize: bool = True):
+def benchmark_model(
+    model_id: str,
+    device: str,
+    batch_size: int = 32,
+    duration_s: float = 10.0,
+    optimize: bool = True,
+):
     """Benchmark a model, returns tok/s."""
     import torch
+
     print(f"\n  Loading {model_id} on {device}...")
 
     from sentence_transformers import SentenceTransformer
@@ -166,7 +177,9 @@ def benchmark_model(model_id: str, device: str, batch_size: int = 32, duration_s
 
     def count_tokens(texts):
         if tokenizer is not None:
-            enc = tokenizer(texts, add_special_tokens=True, truncation=True, max_length=512)
+            enc = tokenizer(
+                texts, add_special_tokens=True, truncation=True, max_length=512
+            )
             return sum(len(ids) for ids in enc["input_ids"])
         return sum(len(t.split()) for t in texts)
 
@@ -175,6 +188,7 @@ def benchmark_model(model_id: str, device: str, batch_size: int = 32, duration_s
         if device == "cuda":
             return torch.autocast("cuda", dtype=torch.float16)
         import contextlib
+
         return contextlib.nullcontext()
 
     # Build batches from the corpus (cycle to fill batch)
@@ -188,7 +202,9 @@ def benchmark_model(model_id: str, device: str, batch_size: int = 32, duration_s
     print(f"  Warming up (5 batches)...")
     for b in batches[:5]:
         with torch.no_grad(), make_ctx():
-            model.encode(b, task="retrieval", convert_to_numpy=True, normalize_embeddings=True)
+            model.encode(
+                b, task="retrieval", convert_to_numpy=True, normalize_embeddings=True
+            )
 
     # Steady-state measurement: run for exactly duration_s seconds
     print(f"  Measuring for {duration_s}s...")
@@ -200,7 +216,12 @@ def benchmark_model(model_id: str, device: str, batch_size: int = 32, duration_s
     while time.perf_counter() < t_end:
         batch = batches[batch_idx % len(batches)]
         with torch.no_grad(), make_ctx():
-            model.encode(batch, task="retrieval", convert_to_numpy=True, normalize_embeddings=True)
+            model.encode(
+                batch,
+                task="retrieval",
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+            )
         total_tokens += count_tokens(batch)
         batch_idx += 1
 
@@ -208,15 +229,19 @@ def benchmark_model(model_id: str, device: str, batch_size: int = 32, duration_s
     tok_per_s = total_tokens / elapsed
 
     avg_tokens = total_tokens / batch_idx if batch_idx > 0 else 0
-    print(f"  Done: {batch_idx} batches | {total_tokens:,} tokens | {elapsed:.1f}s | {tok_per_s:,.0f} tok/s")
+    print(
+        f"  Done: {batch_idx} batches | {total_tokens:,} tokens | {elapsed:.1f}s | {tok_per_s:,.0f} tok/s"
+    )
     print(f"  Avg tokens/batch: {avg_tokens:.1f}")
 
     # Cleanup
     del model
     import gc
+
     gc.collect()
     try:
         import torch
+
         if device == "cuda":
             torch.cuda.empty_cache()
     except Exception:
@@ -228,11 +253,28 @@ def benchmark_model(model_id: str, device: str, batch_size: int = 32, duration_s
 def main():
     parser = argparse.ArgumentParser(description="Jina v5 Throughput Benchmark")
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--duration", type=float, default=10.0, help="Steady-state measurement duration in seconds")
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=10.0,
+        help="Steady-state measurement duration in seconds",
+    )
     parser.add_argument("--device", choices=["cpu", "cuda", "both"], default="both")
-    parser.add_argument("--models", nargs="+", default=None, help="Subset of models to benchmark")
-    parser.add_argument("--no-optimize", action="store_true", help="Disable runtime optimizations (baseline mode)")
-    parser.add_argument("--batch-sizes", nargs="+", type=int, default=None, help="Test multiple batch sizes (e.g. 32 64 128)")
+    parser.add_argument(
+        "--models", nargs="+", default=None, help="Subset of models to benchmark"
+    )
+    parser.add_argument(
+        "--no-optimize",
+        action="store_true",
+        help="Disable runtime optimizations (baseline mode)",
+    )
+    parser.add_argument(
+        "--batch-sizes",
+        nargs="+",
+        type=int,
+        default=None,
+        help="Test multiple batch sizes (e.g. 32 64 128)",
+    )
     args = parser.parse_args()
 
     print("=" * 70)
@@ -247,6 +289,7 @@ def main():
     print(f"Duration: {args.duration}s steady-state")
 
     import torch
+
     has_gpu = torch.cuda.is_available()
     print(f"CUDA available: {has_gpu}")
 
@@ -272,9 +315,13 @@ def main():
             best_tok_s = None
             best_bs = args.batch_size
             for bs in batch_sizes_to_test:
-                print(f"\n[{model_id}] ({params}) on {device.upper()} | batch_size={bs} | optimize={optimize}")
+                print(
+                    f"\n[{model_id}] ({params}) on {device.upper()} | batch_size={bs} | optimize={optimize}"
+                )
                 try:
-                    tok_s = benchmark_model(model_id, device, bs, args.duration, optimize=optimize)
+                    tok_s = benchmark_model(
+                        model_id, device, bs, args.duration, optimize=optimize
+                    )
                     if best_tok_s is None or tok_s > best_tok_s:
                         best_tok_s = tok_s
                         best_bs = bs
@@ -294,7 +341,10 @@ def main():
     if "Intel" in cpu_info:
         parts = cpu_info.split()
         try:
-            idx = next((i for i, p in enumerate(parts) if p in ("Platinum", "Gold", "Silver")), -1)
+            idx = next(
+                (i for i, p in enumerate(parts) if p in ("Platinum", "Gold", "Silver")),
+                -1,
+            )
             if idx >= 0 and idx + 1 < len(parts):
                 cpu_short = f"Intel Xeon {parts[idx]} {parts[idx+1]}"
             elif "@" in cpu_info:
@@ -309,8 +359,8 @@ def main():
     print(f"\n{'Model':<45} {'CPU tok/s':>12} {'GPU tok/s':>12}")
     print("-" * 70)
     for model_id, data in results.items():
-        cpu_val = f"{int(data['cpu']):,}" if data['cpu'] is not None else "N/A"
-        gpu_val = f"{int(data['gpu']):,}" if data['gpu'] is not None else "N/A"
+        cpu_val = f"{int(data['cpu']):,}" if data["cpu"] is not None else "N/A"
+        gpu_val = f"{int(data['gpu']):,}" if data["gpu"] is not None else "N/A"
         short_name = model_id.split("/")[-1]
         print(f"{short_name:<45} {cpu_val:>12} {gpu_val:>12}")
 
@@ -339,8 +389,8 @@ def main():
     print(f"|       | {cpu_short} | NVIDIA L4 (30.3 TFLOPS FP16) |")
     for model_id, data in results.items():
         short_name = model_id.split("/")[-1]
-        cpu_val = f"{int(data['cpu']):,}" if data['cpu'] is not None else "N/A"
-        gpu_val = f"{int(data['gpu']):,}" if data['gpu'] is not None else "N/A"
+        cpu_val = f"{int(data['cpu']):,}" if data["cpu"] is not None else "N/A"
+        gpu_val = f"{int(data['gpu']):,}" if data["gpu"] is not None else "N/A"
         print(f"| {short_name} | {cpu_val} | {gpu_val} |")
 
 

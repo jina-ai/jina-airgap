@@ -7,6 +7,7 @@ Usage:
 Designed to be re-run any time models/catalog.json changes so the wiki page
 stays in sync with the source of truth.
 """
+
 from __future__ import annotations
 
 import json
@@ -96,7 +97,9 @@ def render() -> str:
             continue
         out.append(f"## {headings[t]}")
         out.append("")
-        out.append("| Model | Prebuilt | Params | VRAM | Context | Output | Modality | License |")
+        out.append(
+            "| Model | Prebuilt | Params | VRAM | Context | Output | Modality | License |"
+        )
         out.append("|---|---|---|---|---|---|---|---|")
         for m in by_type[t]:
             prebuilt = (
@@ -121,14 +124,28 @@ def render() -> str:
     out.append("")
     out.append("Quick rules of thumb:")
     out.append("")
-    out.append("- **First-time test / latency-critical**: `jina-embeddings-v5-text-nano` (239M, ~2GB, CPU-friendly).")
-    out.append("- **Multilingual production embeddings**: `jina-embeddings-v5-text-small` or `jina-embeddings-v4`.")
-    out.append("- **Multimodal (text + image)**: `jina-embeddings-v5-omni-small` or `jina-clip-v2`.")
-    out.append("- **Code search**: `jina-code-embeddings-1.5b` (or 0.5b for smaller deploys).")
-    out.append("- **Reranking after retrieval**: `jina-reranker-v3.5` (best quality) or `jina-reranker-v2-base-multilingual` (faster, CPU-friendly).")
-    out.append("- **HTML/document cleanup**: `ReaderLM-v2` (largest context) or `reader-lm-0.5b` (lightweight).")
+    out.append(
+        "- **First-time test / latency-critical**: `jina-embeddings-v5-text-nano` (239M, ~2GB, CPU-friendly)."
+    )
+    out.append(
+        "- **Multilingual production embeddings**: `jina-embeddings-v5-text-small` or `jina-embeddings-v4`."
+    )
+    out.append(
+        "- **Multimodal (text + image)**: `jina-embeddings-v5-omni-small` or `jina-clip-v2`."
+    )
+    out.append(
+        "- **Code search**: `jina-code-embeddings-1.5b` (or 0.5b for smaller deploys)."
+    )
+    out.append(
+        "- **Reranking after retrieval**: `jina-reranker-v3.5` (best quality) or `jina-reranker-v2-base-multilingual` (faster, CPU-friendly)."
+    )
+    out.append(
+        "- **HTML/document cleanup**: `ReaderLM-v2` (largest context) or `reader-lm-0.5b` (lightweight)."
+    )
     out.append("")
-    out.append("See [API Reference](API-Reference) for the request shapes each model expects.")
+    out.append(
+        "See [API Reference](API-Reference) for the request shapes each model expects."
+    )
     return "\n".join(out) + "\n"
 
 
