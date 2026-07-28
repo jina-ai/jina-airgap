@@ -21,6 +21,10 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+# Prompt keys that name a role rather than a task. v4 and v5 key their prompts
+# dict by these alone, so they carry no information about which tasks exist.
+_PROMPT_ROLES = frozenset({"query", "passage", "document"})
+
 
 class Family(ABC):
     """One model runtime."""
@@ -68,15 +72,38 @@ class Family(ABC):
         Not from the catalog's ``tasks`` list: that field is documentation and
         has drifted -- it says ``techqa`` for code-embeddings where both the
         public API (``qa.query``) and the model's own prompts (``qa_query``)
-        say ``qa``. Empty means the model exposes nothing to check against, and
-        the task is passed through rather than guessed at.
+        say ``qa``.
+
+        Two prompt-key conventions exist and only one of them names tasks. v3
+        keys by task (``retrieval.query``), code-embeddings by task and role
+        (``nl2code_query``), but v4 and v5 key by role alone (``query`` /
+        ``passage`` / ``document``) -- which says nothing about which tasks the
+        model has. Reading those as task names rejected every valid task on v4
+        and both v5 families, so role words are dropped and the real names come
+        off the underlying HF config.
+
+        Empty means the model exposes nothing to check against, and the task is
+        passed through rather than guessed at.
         """
-        names = set(
-            getattr(getattr(self.model, "config", None), "task_names", ()) or ()
-        )
+        names = {
+            str(name)
+            for name in (getattr(self._auto_config(), "task_names", None) or ())
+        }
         for key in getattr(self.model, "prompts", None) or ():
-            names.add(str(key).partition(".")[0].partition("_")[0])
+            base = str(key).partition(".")[0].partition("_")[0]
+            if base not in _PROMPT_ROLES:
+                names.add(base)
         return frozenset(names)
+
+    def _auto_config(self):
+        """The HF config of the underlying transformer.
+
+        ``SentenceTransformer`` has no ``.config`` of its own, so reading one
+        off it silently yields nothing.
+        """
+        first = getattr(self.model, "_first_module", None)
+        module = first() if callable(first) else None
+        return getattr(getattr(module, "auto_model", None), "config", None)
 
     def autocast(self):
         """Autocast context for encode().
