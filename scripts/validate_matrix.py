@@ -70,6 +70,22 @@ try:
     out["cuda"] = torch.cuda.is_available()
 except Exception as exc:
     out["import_error"] = repr(exc)
+
+# The same guard app.py installs. Not a Jina behaviour: transformers wraps every
+# remote-code AutoModel in a generation mixin and assumes it has
+# prepare_inputs_for_generation, which an embedding-only model does not. Without
+# it, plain sentence-transformers cannot load a v5 model at all -- measured, and
+# the reason this patch exists in the server.
+try:
+    from transformers.models.auto import auto_factory
+    _add = getattr(auto_factory, "add_generation_mixin_to_remote_model", None)
+    if _add:
+        auto_factory.add_generation_mixin_to_remote_model = (
+            lambda cls: cls if not hasattr(cls, "prepare_inputs_for_generation") else _add(cls)
+        )
+    out["applied_generation_mixin_guard"] = bool(_add)
+except Exception:
+    pass
 try:
     if runtime in ("sentence_transformer", "embeddings_v3", "embeddings_v4",
                    "embeddings_v5_text", "embeddings_v5_omni"):
@@ -86,9 +102,13 @@ try:
         model = CrossEncoder(model_id, trust_remote_code=True)
         if model.tokenizer.pad_token is None:
             model.tokenizer.pad_token = model.tokenizer.eos_token
-        scores = np.asarray(model.predict([[query, t] for t in texts],
-                                          convert_to_numpy=True)).ravel()
-        out["scores"] = [float(s) for s in scores]
+        # v2-base-multilingual predicts in bf16, which numpy has no dtype for,
+        # so go via a tensor and cast -- the same thing CrossEncoderFamily does.
+        scores = model.predict([[query, t] for t in texts],
+                               convert_to_numpy=False, convert_to_tensor=True)
+        if hasattr(scores, "float"):
+            scores = scores.float().detach().cpu().numpy()
+        out["scores"] = [float(s) for s in np.asarray(scores).ravel()]
     elif runtime == "jina_ranking":
         from transformers import AutoModel
         model = AutoModel.from_pretrained(model_id, trust_remote_code=True,
