@@ -66,13 +66,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
 
 WORKDIR /app
 
-# Copy server code
-COPY server/ /app/
-COPY models/catalog.json /app/catalog.json
-
 # Install remaining model deps from pinned requirements
 # torch, torchvision already in base image, skip them
 # flash-attn needs nvcc to compile from source
+#
+# Server code is COPYed last, after every multi-GB layer, so editing it
+# invalidates only the final layer. With it first, one line of Python forced a
+# full dependency reinstall and weight re-copy on all 58 images.
 COPY docker/model-requirements.txt /tmp/model-requirements.txt
 RUN grep -v '^\s*#' /tmp/model-requirements.txt | grep -v '^\s*$' | \
     grep -iv '^torch' | grep -iv '^flash-attn' | \
@@ -116,6 +116,10 @@ RUN pip install --no-cache-dir \
 
 # Copy cached model weights from downloader stage
 COPY --from=downloader /model_cache /model_cache
+
+# Server code, last: the only layer a code change rebuilds.
+COPY models/catalog.json /app/catalog.json
+COPY server/ /app/
 
 # Enforce air-gap: all model files are baked in, no downloads at runtime
 ENV HF_HUB_OFFLINE=1 \

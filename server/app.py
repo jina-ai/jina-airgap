@@ -38,13 +38,12 @@ def _patch_transformers() -> None:
        calls don't prompt for interactive confirmation in offline containers.
     2. add_generation_mixin_to_remote_model: guard against models without
        prepare_inputs_for_generation (embedding-only models like JinaEmbeddingsV5).
-    3. _patch_mistral_regex (transformers 4.57.3 only; absent in 4.56.2-4.57.2):
-       calls huggingface_hub.model_info(repo_id) to sniff base-mistral tokenizers
-       by tag whenever the tokenizer is loaded by repo id rather than by path.
-       jina-reranker-v3.5's rerank() re-loads its own tokenizer by name, so an
-       air-gapped container hits it and raises OfflineModeIsEnabled. No Jina model
-       is a base-mistral model, so when offline we skip the probe and return the
-       tokenizer unchanged -- the regex fix is a no-op for non-mistral tokenizers.
+
+    A third patch used to live here, bypassing ``_patch_mistral_regex`` -- a
+    private classmethod that only transformers 4.57.3 has, and that hits the hub
+    whenever a tokenizer is loaded by repo id. jina-reranker-v3.5 was the only
+    model pinned to 4.57.3; it now pins 4.57.1, where the classmethod does not
+    exist, so the bypass is gone rather than dormant.
     """
     try:
         from transformers import dynamic_module_utils
@@ -68,26 +67,6 @@ def _patch_transformers() -> None:
 
             auto_factory.add_generation_mixin_to_remote_model = (
                 safe_add_generation_mixin
-            )
-    except Exception:
-        pass
-
-    try:
-        from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-
-        patch_mistral = getattr(PreTrainedTokenizerBase, "_patch_mistral_regex", None)
-        if patch_mistral is not None:
-
-            def safe_patch_mistral(tokenizer, *args, **kwargs):
-                if (
-                    os.environ.get("HF_HUB_OFFLINE") == "1"
-                    or os.environ.get("TRANSFORMERS_OFFLINE") == "1"
-                ):
-                    return tokenizer
-                return patch_mistral(tokenizer, *args, **kwargs)
-
-            PreTrainedTokenizerBase._patch_mistral_regex = staticmethod(
-                safe_patch_mistral
             )
     except Exception:
         pass
