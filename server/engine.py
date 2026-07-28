@@ -163,10 +163,17 @@ def embed(
     n_tokens = count_tokens(texts, cap=SPEC.context) if texts else len(items)
 
     start = time.perf_counter()
-    with torch.inference_mode(), family.autocast():
-        embeddings = family.encode(
-            inputs, task, prompt_name, normalized=normalized, extra=extra
-        )
+    try:
+        with torch.inference_mode(), family.autocast():
+            embeddings = family.encode(
+                inputs, task, prompt_name, normalized=normalized, extra=extra
+            )
+    except ValueError as exc:
+        # The model is the authority on its own task names, and some -- v4,
+        # v5 -- expose none to check against beforehand. When one rejects an
+        # argument it is the caller's mistake, so it answers 400 carrying the
+        # model's own message rather than a 500 that reads like a crash.
+        raise BadRequest(str(exc), field="task") from exc
     elapsed = time.perf_counter() - start
 
     if isinstance(embeddings, np.ndarray) and embeddings.ndim == 1 and len(items) == 1:
