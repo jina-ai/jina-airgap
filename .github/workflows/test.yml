@@ -1,9 +1,10 @@
 name: Tests
 
-# Fast checks only: no torch, no model weights, no Docker, no network.
-# Tests needing a running container (test_e2e.py) or the server deps
-# (test_default_task.py) skip themselves. Building a bundle takes 3-30 min and
-# several GB, so image-level verification stays manual (test_airgap.sh).
+# Fast checks only: no model weights, no Docker, no network. numpy is installed
+# because the serializers are pure numpy, so test_contracts.py can pin their
+# output here rather than skip. Tests needing a running container (test_e2e.py)
+# or torch (test_batching.py) skip themselves. Building a bundle takes 3-30 min
+# and several GB, so image-level verification stays manual (test_airgap.sh).
 on:
   push:
     branches: [main]
@@ -21,5 +22,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install --no-cache-dir pytest
+      - run: pip install --no-cache-dir pytest numpy
       - run: python -m pytest tests/ -v
