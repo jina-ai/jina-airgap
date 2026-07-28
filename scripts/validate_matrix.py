@@ -213,6 +213,12 @@ def validate(spec: dict, runtime: str, args) -> dict:
         "--rm",
         "--name",
         container,
+        # A max-context input to a 32k-context model runs quadratic attention
+        # in fp32 on CPU. jina-embeddings-v5-omni-small reached 126 GB that way
+        # and the host OOM killer took the sweep down with it. Capping the
+        # container turns that into a recorded 500 for one probe instead.
+        "--memory",
+        args.memory_limit,
         "--network",
         "none",
         "-e",
@@ -352,6 +358,11 @@ def main() -> int:
     parser.add_argument("--registry", default="ghcr.io/jina-ai/jina-on-prem")
     parser.add_argument("--out", default="/var/tmp/jina-validate")
     parser.add_argument("--jobs", type=int, default=1)
+    parser.add_argument(
+        "--memory-limit",
+        default="64g",
+        help="per-container memory cap, so one model cannot OOM the host",
+    )
     args = parser.parse_args()
 
     if not args.sha:
