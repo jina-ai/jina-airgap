@@ -468,6 +468,28 @@ def main() -> int:
             "body": shrink(outcome.get("body")),
         }
 
+    # Full, untruncated output for the one request that is also sent to
+    # api.jina.ai. Everything else is shrunk for readability, but a cosine
+    # against the public API over an 8-dimension head would not be evidence.
+    parity = None
+    if endpoint == "/v1/embeddings":
+        response = call("/v1/embeddings", {"input": [EN, ZH]}).get("body") or {}
+        parity = {
+            "input": "[EN, ZH]",
+            "usage": response.get("usage"),
+            "vectors": [item.get("embedding") for item in response.get("data", [])],
+        }
+    elif endpoint == "/v1/rerank":
+        response = (
+            call("/v1/rerank", {"query": QUERY, "documents": DOCS}).get("body") or {}
+        )
+        ranked = sorted(response.get("results", []), key=lambda r: r.get("index", 0))
+        parity = {
+            "input": "QUERY + 4 DOCS, no top_n",
+            "usage": response.get("usage"),
+            "scores_by_index": [r.get("relevance_score") for r in ranked],
+        }
+
     print(
         "PROBE_JSON:"
         + json.dumps(
@@ -476,6 +498,7 @@ def main() -> int:
                 "health": health.get("body"),
                 "cold_call_ms": (cold or {}).get("client_ms"),
                 "egress": egress_probe(),
+                "parity": parity,
                 "results": results,
             },
             ensure_ascii=False,
