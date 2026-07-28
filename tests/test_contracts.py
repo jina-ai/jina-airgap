@@ -119,42 +119,16 @@ check(
 
 print("\nembedding_type encoders")
 
-# Bits chosen so packbits produces exactly the bytes above.
-bits = [
-    0,
-    0,
-    1,
-    1,
-    0,
-    0,
-    1,
-    0,  # 0b00110010 = 50
-    1,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,  # 0b11000001 = 193
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,  # 0b10000000 = 128
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,  # 0b11111111 = 255
-]
-vector = np.array([1.0 if bit else -1.0 for bit in bits], dtype=np.float32)
+# A 32-dim vector whose signs pack, MSB first, into exactly those bytes.
+PROD_UBINARY = [50, 193, 128, 255]
+vector = np.array(
+    [
+        1.0 if (byte >> (7 - bit)) & 1 else -1.0
+        for byte in PROD_UBINARY
+        for bit in range(8)
+    ],
+    dtype=np.float32,
+)
 
 check(
     "ubinary is the packed byte",
