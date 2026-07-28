@@ -92,8 +92,15 @@ try:
         from sentence_transformers import SentenceTransformer
         kwargs = {"model_kwargs": {"default_task": "retrieval"}} if runtime == "embeddings_v5_omni" else {}
         model = SentenceTransformer(model_id, trust_remote_code=True, **kwargs)
+        # v4 and v5-text refuse to encode without a task ("Task must be
+        # specified before encoding data"), so pass one when the model's own
+        # pipeline declares it accepts one.
+        declared = {n for names in (getattr(model, "module_kwargs", None) or {}).values()
+                    for n in names}
+        encode_kwargs = {"task": "retrieval"} if "task" in declared else {}
+        out["declared_encode_kwargs"] = sorted(declared)
         vectors = np.asarray(model.encode(texts, convert_to_numpy=True,
-                                          normalize_embeddings=True))
+                                          normalize_embeddings=True, **encode_kwargs))
         out["dim"] = int(vectors.shape[-1])
         out["vectors_head"] = vectors[:, :8].tolist()
         out["norms"] = [float(np.linalg.norm(v)) for v in vectors]
@@ -123,6 +130,25 @@ try:
         ranked = pr.rerank(documents_ids=[list(range(len(texts)))],
                            queries_embeddings=qe, documents_embeddings=[de])
         out["scores"] = [float(r["score"]) for r in sorted(ranked[0], key=lambda r: r["id"])]
+    elif runtime in ("text_chat", "vlm"):
+        # The four generative models are absent from the public API, so this is
+        # their only oracle. Greedy decoding with a fixed token budget, which is
+        # what the server asks for at temperature 0 -- so the two are comparable.
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        tok = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id, trust_remote_code=True, torch_dtype="auto",
+            low_cpu_mem_usage=True, attn_implementation="sdpa").eval()
+        prompt = tok.apply_chat_template(
+            [{"role": "user", "content": query}], add_generation_prompt=True, tokenize=False)
+        inputs = tok(prompt, return_tensors="pt")
+        with torch.inference_mode():
+            generated = model.generate(**inputs, max_new_tokens=64, do_sample=False)
+        completion = tok.decode(generated[0][inputs["input_ids"].shape[1]:],
+                                skip_special_tokens=True)
+        out["generated"] = completion
+        out["generated_chars"] = len(completion)
     else:
         out["skipped"] = f"no library oracle for runtime {runtime}"
 except Exception as exc:
@@ -306,35 +332,55 @@ def validate(spec: dict, runtime: str, args) -> dict:
                 for v in (payload.get("egress") or {"x": "CONNECTED"}).values()
             )
 
-            oracle_env = []
-            for key, value in (
-                ("ORACLE_MODEL", spec["hf_repo"]),
-                ("ORACLE_RUNTIME", spec["runtime"]),
-                (
-                    "ORACLE_TEXTS",
-                    json.dumps(
-                        DOCS if spec["api_endpoint"] == "/v1/rerank" else [EN, ZH]
-                    ),
-                ),
-                ("ORACLE_QUERY", QUERY),
-            ):
-                oracle_env += ["-e", f"{key}={value}"]
-            oracle = run(
-                ["docker", "exec", *oracle_env, container, "python", "-c", ORACLE],
-                timeout=3600,
-            )
-            record["oracle"] = tagged_json(oracle.stdout, "ORACLE_JSON:") or {
-                "error": (oracle.stdout + oracle.stderr)[-1200:]
-            }
             logs = run(["docker", "logs", "--tail", "40", container])
             record["log_tail"] = (logs.stdout + logs.stderr)[-2000:]
-            record["status"] = "ok"
-            return record
         finally:
+            # Source C runs only after the serving container is gone. Loading a
+            # second copy of the model beside a live one OOMs a 23 GB L4 --
+            # clip-v1 and v4 both did exactly that on the first pass.
             run(["docker", "kill", container], timeout=180)
+
+        record["oracle"] = library_oracle(image, runtime, spec)
+        record["status"] = "ok"
+        return record
     finally:
         if lock:
             lock.release()
+
+
+CHAT_PROMPT = (
+    "Summarise in two sentences why batching matters for large language "
+    "model inference."
+)
+
+
+def library_oracle(image: str, runtime: str, spec: dict) -> dict:
+    """Source C, in its own container off the same image.
+
+    Same weights, same pinned dependencies, no server in the path -- and
+    crucially no second copy of the model sharing the GPU with a live one.
+    """
+    command = ["docker", "run", "--rm", "--network", "none", "--memory", "64g"]
+    if runtime == "gpu":
+        command += ["--gpus", "all"]
+    for key, value in (
+        ("ORACLE_MODEL", spec["hf_repo"]),
+        ("ORACLE_RUNTIME", spec["runtime"]),
+        (
+            "ORACLE_TEXTS",
+            json.dumps(DOCS if spec["api_endpoint"] == "/v1/rerank" else [EN, ZH]),
+        ),
+        (
+            "ORACLE_QUERY",
+            CHAT_PROMPT if spec["api_endpoint"] == "/v1/chat/completions" else QUERY,
+        ),
+    ):
+        command += ["-e", f"{key}={value}"]
+    command += ["--entrypoint", "python", image, "-c", ORACLE]
+    completed = run(command, timeout=5400)
+    return tagged_json(completed.stdout, "ORACLE_JSON:") or {
+        "error": (completed.stdout + completed.stderr)[-1200:]
+    }
 
 
 def summarise(record: dict) -> str:
