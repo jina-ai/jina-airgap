@@ -116,15 +116,28 @@ def tokenizer():
     return _family.tokenizer if _family else None
 
 
-def count_tokens(texts: list[str]) -> int:
+def count_tokens(texts: list[str], cap: Optional[int] = None) -> int:
+    """Tokens the model will actually process.
+
+    ``cap`` is the per-input context limit. It matters for ``truncate=true``:
+    the model only ever sees the first ``cap`` tokens, so counting the whole
+    submission would report work that never happened. Measured on
+    api.jina.ai -- a 60k-character input to v3 with ``truncate=true`` comes
+    back as ``total_tokens: 8194`` against an 8192-token context, not as the
+    submitted count.
+    """
     tokenizer = _family.tokenizer if _family else None
     if tokenizer is not None:
         try:
             encoded = tokenizer(texts, add_special_tokens=True)
-            return sum(len(ids) for ids in encoded["input_ids"])
+            lengths = [len(ids) for ids in encoded["input_ids"]]
         except Exception:
-            pass
-    return sum(len(text.split()) for text in texts)
+            lengths = [len(text.split()) for text in texts]
+    else:
+        lengths = [len(text.split()) for text in texts]
+    if cap:
+        lengths = [min(length, cap) for length in lengths]
+    return sum(lengths)
 
 
 def embed(
@@ -147,7 +160,7 @@ def embed(
     family = _require_embed()
     task, prompt_name = family.resolve_task(task)
     inputs, texts = _split_inputs(items)
-    n_tokens = count_tokens(texts) if texts else len(items)
+    n_tokens = count_tokens(texts, cap=SPEC.context) if texts else len(items)
 
     start = time.perf_counter()
     with torch.inference_mode(), family.autocast():
@@ -211,7 +224,7 @@ def rerank(
     texts = [document_text(document) for document in documents]
     if max_doc_length:
         texts = [_clip(text, max_doc_length) for text in texts]
-    n_tokens = count_tokens([query] + texts)
+    n_tokens = count_tokens([query] + texts, cap=SPEC.context)
 
     start = time.perf_counter()
     with torch.inference_mode():
