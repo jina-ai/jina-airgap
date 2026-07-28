@@ -60,15 +60,28 @@ class SentenceTransformerFamily(Family):
         task = task or tasks.default_task(self.spec.family)
         return task, tasks.map_prompt_name(task, self.prompts)
 
-    def encode(self, inputs: list, task: Optional[str], prompt_name: Optional[str]):
+    def encode(
+        self,
+        inputs: list,
+        task: Optional[str],
+        prompt_name: Optional[str],
+        *,
+        normalized: bool = True,
+        extra: Optional[dict] = None,
+    ):
         """Prompt routing applies whenever the model exposes a matching prompts
         entry: v5-omni "Query: "/"Document: " (without it, last-token pooling on
         the LLaMA/Qwen text tower drifts -- cos ~0.16 on nano); v4
         "Query: "/"Passage: " on the retrieval/code LoRAs; code-embeddings
         "Find the most relevant ..."/"Candidate ..." per task family.
         """
-        kwargs = {"convert_to_numpy": True, "normalize_embeddings": True}
+        kwargs = {"convert_to_numpy": True, "normalize_embeddings": normalized}
         kwargs.update(self._task_kwargs(task))
+        kwargs.update(extra or {})
+        if kwargs.get("return_multivector"):
+            # Per-token output is ragged -- one matrix per input, each with its
+            # own token count -- so there is nothing for numpy to stack.
+            kwargs["convert_to_numpy"] = False
         # Only forward prompt_name when every input is a string: ST prepends
         # ``prompts[prompt_name]`` to each input verbatim and would raise on
         # PIL.Image / BytesIO / fused tuple items. Pure-multimodal calls keep

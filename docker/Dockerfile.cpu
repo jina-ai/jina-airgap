@@ -62,12 +62,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy server code
-COPY server/ /app/
-COPY models/catalog.json /app/catalog.json
-
 # Install model deps from pinned requirements
 # torch and torchvision from CPU index, flash-attn skipped for CPU
+#
+# Server code is COPYed last, after every multi-GB layer, so editing it
+# invalidates only the final layer. With it first, one line of Python forced a
+# full torch reinstall and weight re-copy on all 58 images.
 COPY docker/model-requirements.txt /tmp/model-requirements.txt
 RUN TORCH_VER=$(grep -i '^torch==' /tmp/model-requirements.txt | head -1 | sed 's/torch//') && \
     TV_VER=$(grep -i '^torchvision==' /tmp/model-requirements.txt | head -1 | sed 's/torchvision//') && \
@@ -83,6 +83,10 @@ RUN pip install --no-cache-dir \
 
 # Copy cached model weights from downloader stage
 COPY --from=downloader /model_cache /model_cache
+
+# Server code, last: the only layer a code change rebuilds.
+COPY models/catalog.json /app/catalog.json
+COPY server/ /app/
 
 # Enforce air-gap: all model files are baked in, no downloads at runtime
 ENV HF_HUB_OFFLINE=1 \

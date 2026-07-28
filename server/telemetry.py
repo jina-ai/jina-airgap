@@ -1,6 +1,19 @@
-"""Throughput accounting behind /health."""
+"""Throughput accounting: the /health block, and the per-request headers.
 
+Timing is on-prem-only -- api.jina.ai does not report it -- so it travels in
+`X-Jina-*` response headers and never in the body. That is what lets every
+Jina-native response byte-match the public API with no carve-outs, while an
+operator with no metrics stack can still read throughput off a curl.
+"""
+
+import contextvars
 import threading
+
+# Set by the middleware before the endpoint runs, mutated by record(). A box
+# rather than a plain value because Starlette runs the endpoint in a child
+# task: the context is copied in, so a variable set afterwards would not be
+# visible here, but mutating the object it already holds is.
+_measure: contextvars.ContextVar[dict] = contextvars.ContextVar("jina_measure")
 
 _lock = threading.Lock()
 _stats = {
@@ -12,9 +25,20 @@ _stats = {
 }
 
 
+def begin() -> dict:
+    """Open a per-request measurement box and hand it to the caller."""
+    box: dict = {}
+    _measure.set(box)
+    return box
+
+
 def record(n_tokens: int, elapsed_s: float) -> float:
     """Fold one inference call into the running stats; return its tok/s."""
     tok_per_s = n_tokens / elapsed_s if elapsed_s > 0 else 0.0
+    box = _measure.get(None)
+    if box is not None:
+        box["tok_per_s"] = tok_per_s
+        box["elapsed_ms"] = elapsed_s * 1000
     with _lock:
         _stats["total_requests"] += 1
         _stats["total_tokens"] += n_tokens

@@ -1,5 +1,6 @@
 import base64
 import io
+from typing import Union
 
 from errors import BadRequest, PayloadTooLarge
 
@@ -155,7 +156,10 @@ def _parse_content_part(part: dict) -> list:
 
     t = part.get("type", "")
 
-    if t == "text":
+    # `{"type": "text", ...}` is OpenAI's spelling; a bare `{"text": ...}` with
+    # no discriminator is Jina's own TextDoc, which the public API accepts in
+    # `input` and which `documents` already accepts on the rerank side.
+    if t == "text" or (not t and "text" in part):
         return [part.get("text", "")]
 
     # Elastic Inference Service: {"type": "image", "format": "base64", "value": "..."}
@@ -173,6 +177,13 @@ def _parse_content_part(part: dict) -> list:
             )
         raw, mime = _decode_b64(url)
         return [_bytes_to_st_input(raw, mime)]
+
+    # Voyage documents a video_url part. Fetching it needs egress, so name the
+    # reason rather than let it fall through to "unknown part type".
+    if t == "video_url":
+        raise BadRequest(
+            "video_url: only data: URLs (base64) are supported in air-gapped mode"
+        )
 
     # Gemini: {"inlineData": {"mimeType": "...", "data": "..."}}
     if "inlineData" in part:
@@ -225,3 +236,18 @@ def _parse_openai_item(item) -> list:
 
     # Single-part item: delegate to content-part parser
     return _parse_content_part(item)
+
+
+def fuse_content(content: list) -> Union[str, list]:
+    """Flatten a content-part array into one fused embedding input.
+
+    A list of parts means one embedding over all of them, not one embedding
+    each -- Cohere's `inputs[].content`, Voyage's `inputs[].content` and
+    Gemini's `content.parts` all mean the same thing.
+    """
+    parts = []
+    for part in content:
+        parts.extend(_parse_content_part(part))
+    if len(parts) > 1:
+        return parts
+    return parts[0] if parts else ""
