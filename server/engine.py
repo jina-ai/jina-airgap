@@ -82,7 +82,10 @@ def load() -> None:
     logger.info(
         f"Model loaded: {settings.model_id} on {settings.device} | "
         f"multimodal={is_multimodal()} | threads={settings.cpu_threads} | "
-        f"batching={_batcher is not None}"
+        # Every embed image has the worker; only the throughput variant merges
+        # across requests. Reporting the worker's existence as "batching" made
+        # a plain :gpu image claim it was batching when it was not.
+        f"worker={_batcher is not None} | batching={settings.batching}"
     )
 
 
