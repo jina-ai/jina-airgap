@@ -48,7 +48,7 @@ class Recorder:
         self.delay = delay
         self.lock = threading.Lock()
 
-    def __call__(self, key, inputs):
+    def __call__(self, key, inputs, merge=True):
         if self.delay:
             time.sleep(self.delay)
         with self.lock:
@@ -86,7 +86,7 @@ def main():
 
     # --- scatter correctness: every caller gets its own rows, in order ---
     rec = Recorder(delay=0.05)
-    b = Batcher(rec, token_budget=100_000, wait_ms=20)
+    b = Batcher(rec, wait_ms=20, startup=lambda: 100_000)
     jobs = [
         ("a", [f"x-{i}" for i in range(3)], key()),
         ("b", [f"x-{i}" for i in range(100, 105)], key()),
@@ -107,7 +107,7 @@ def main():
 
     # --- homogeneity: a differing key must never share a forward ---
     rec2 = Recorder(delay=0.05)
-    b2 = Batcher(rec2, token_budget=100_000, wait_ms=20)
+    b2 = Batcher(rec2, wait_ms=20, startup=lambda: 100_000)
     submit_many(
         b2,
         [
@@ -123,7 +123,7 @@ def main():
 
     # --- idle latency: a lone request must not pay the coalescing window ---
     rec3 = Recorder()
-    b3 = Batcher(rec3, token_budget=100_000, wait_ms=500)
+    b3 = Batcher(rec3, wait_ms=500, startup=lambda: 100_000)
     start = time.monotonic()
     b3.submit(["x-1"], key(), [4])
     solo_ms = (time.monotonic() - start) * 1000
@@ -135,7 +135,7 @@ def main():
 
     # --- token budget: packing must not exceed rows x longest ---
     rec4 = Recorder()
-    b4 = Batcher(rec4, token_budget=40, wait_ms=0)
+    b4 = Batcher(rec4, wait_ms=0, startup=lambda: 40)
     b4.submit([f"x-{i}" for i in range(20)], key(), [10] * 20)
     worst = max(len(inputs) * 10 for _, inputs in rec4.calls)
     check("no forward exceeds the token budget", worst <= 40, f"worst={worst}")
@@ -143,7 +143,7 @@ def main():
 
     # --- row cap holds even when the budget would allow more ---
     rec5 = Recorder()
-    b5 = Batcher(rec5, token_budget=10_000_000, wait_ms=0)
+    b5 = Batcher(rec5, wait_ms=0, startup=lambda: 10_000_000)
     b5.submit([f"x-{i}" for i in range(MAX_ROWS + 50)], key(), [1] * (MAX_ROWS + 50))
     check(
         "no forward exceeds MAX_ROWS",
@@ -152,12 +152,12 @@ def main():
     )
 
     # --- error isolation: a failing key must not fail an unrelated one ---
-    def selective(k, inputs):
+    def selective(k, inputs, merge=True):
         if k[0] == "poison":
             raise ValueError("bad task")
         return np.array([[float(t.split("-")[1]), 0.0] for t in inputs])
 
-    b6 = Batcher(selective, token_budget=100_000, wait_ms=20)
+    b6 = Batcher(selective, wait_ms=20, startup=lambda: 100_000)
     out6, errs6 = submit_many(
         b6,
         [
@@ -171,19 +171,20 @@ def main():
     # --- OOM backoff: split in half, shrink the budget, still return everything ---
     state = {"fail_above": 8}
 
-    def oom_once(k, inputs):
+    def oom_once(k, inputs, merge=True):
         if len(inputs) > state["fail_above"]:
             raise torch_oom()
         return np.array([[float(t.split("-")[1]), 0.0] for t in inputs])
 
-    b7 = Batcher(oom_once, token_budget=10_000_000, wait_ms=0)
+    b7 = Batcher(oom_once, wait_ms=0, startup=lambda: 10_000_000)
     before = b7._budget
     got = b7.submit([f"x-{i}" for i in range(32)], key(), [1] * 32)
     check("OOM backoff still returns every row", [v[0] for v in got] == list(range(32)))
     check("OOM backoff shrank the token budget", b7._budget < before, f"{before} -> {b7._budget}")
 
     # --- a wrong-length model return is caught, not silently mis-scattered ---
-    b8 = Batcher(lambda k, i: np.zeros((len(i) - 1, 2)), token_budget=100_000, wait_ms=0)
+    b8 = Batcher(lambda k, i, m: np.zeros((len(i) - 1, 2)), wait_ms=0,
+                 startup=lambda: 100_000)
     try:
         b8.submit(["x-1", "x-2", "x-3"], key(), [1, 1, 1])
         check("short model return is rejected", False, "no error raised")

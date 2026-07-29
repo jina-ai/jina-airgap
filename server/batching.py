@@ -7,9 +7,13 @@ into length-sorted, token-budgeted forwards, and scatters the rows back.
 
 Two invariants make this safe rather than merely fast:
 
-* **One thread touches the model.** Callers block on an ``Event``; they never
-  reach ``encode`` themselves. Requests that cannot be merged still go through
-  the worker, alone, so there is never a second thread on the GPU.
+* **One thread touches the model, always.** Callers block on an ``Event``; they
+  never reach ``encode`` themselves, and even the startup warm-up runs on the
+  worker. That last part is not tidiness: ``torch.compile(mode="reduce-overhead")``
+  keeps its CUDA-graph tree in thread-local storage, so a graph captured during
+  a warm-up on the startup thread cannot be replayed from the worker -- it trips
+  an assertion on the first real request. Requests that cannot be merged still
+  go through the worker, alone, so there is never a second thread on the GPU.
 * **A batch is homogeneous in everything that changes the forward pass.**
   Task, prompt prefix, normalisation and the native extras are part of the
   grouping key, so merging can only ever change how rows are grouped, never
@@ -80,17 +84,36 @@ class Batcher:
     job to put everything that changes the forward pass into ``key``.
     """
 
-    def __init__(self, encode: Callable[[tuple, list], Any], token_budget: int, wait_ms: float):
+    def __init__(
+        self,
+        encode: Callable[[tuple, list], Any],
+        wait_ms: float,
+        merge: bool = True,
+        startup: Optional[Callable[[], int]] = None,
+    ):
         self._encode = encode
-        self._budget = max(token_budget, 1)
+        self._budget = 1
         self._wait_s = max(0.0, wait_ms) / 1000.0
+        self._merge = merge
+        self._startup = startup
+        self._ready = threading.Event()
+        self._startup_error: Optional[BaseException] = None
         self._queue: "queue.Queue[Optional[_Job]]" = queue.Queue()
         self._thread = threading.Thread(target=self._run, name="model-worker", daemon=True)
         self._thread.start()
+        # Block until the worker has finished warming up, so the server does not
+        # report ready while the first request would still pay for compilation.
+        self._ready.wait()
+        if self._startup_error is not None:
+            raise self._startup_error
         logger.info(
-            f"Batcher started: token_budget={self._budget} max_rows={MAX_ROWS} "
-            f"wait_ms={wait_ms}"
+            f"Batcher started: merge={merge} token_budget={self._budget} "
+            f"max_rows={MAX_ROWS} wait_ms={wait_ms}"
         )
+
+    @property
+    def merges(self) -> bool:
+        return self._merge
 
     def submit(self, inputs: list, key: tuple, lengths: list[int]) -> list:
         """Enqueue and block until this job's rows are filled.
@@ -108,6 +131,15 @@ class Batcher:
         return job.results
 
     def _run(self) -> None:
+        try:
+            if self._startup is not None:
+                self._budget = max(self._startup(), 1)
+        except BaseException as exc:  # noqa: BLE001 - surfaced to load()
+            self._startup_error = exc
+        finally:
+            self._ready.set()
+        if self._startup_error is not None:
+            return
         while True:
             first = self._queue.get()
             if first is None:
@@ -124,6 +156,11 @@ class Batcher:
                         self._fail(job, exc)
 
     def _collect(self, first: _Job) -> list[_Job]:
+        if not self._merge:
+            # Worker-only mode: the point is that one thread owns the model, not
+            # that forwards are full. Callers still get exactly the forward they
+            # would have got calling encode themselves.
+            return [first]
         jobs = [first]
         rows = len(first.inputs)
         # Whatever is already queued is free to take -- no waiting involved.
@@ -167,11 +204,19 @@ class Batcher:
 
         # Ascending length: padding is charged at the longest member of a
         # chunk, so neighbours of similar length waste the least compute.
-        order = sorted(range(len(inputs)), key=lambda i: lengths[i])
-        for chunk in self._pack(order, lengths):
+        if not self._merge:
+            chunks = [list(range(len(inputs)))]
+        else:
+            # Ascending length: padding is charged at the longest member of a
+            # chunk, so neighbours of similar length waste the least compute.
+            order = sorted(range(len(inputs)), key=lambda i: lengths[i])
+            chunks = self._pack(order, lengths)
+        for chunk in chunks:
             rows = [slots[i] for i in chunk]
             try:
-                encoded = self._encode_with_backoff(key, [inputs[i] for i in chunk])
+                encoded = self._encode_with_backoff(
+                    key, [inputs[i] for i in chunk], self._merge
+                )
             except BaseException as exc:  # noqa: BLE001 - isolate to this chunk
                 for job, _ in rows:
                     self._fail(job, exc)
@@ -201,9 +246,9 @@ class Batcher:
             chunks.append(current)
         return chunks
 
-    def _encode_with_backoff(self, key: tuple, inputs: list):
+    def _encode_with_backoff(self, key: tuple, inputs: list, merge: bool):
         try:
-            return _as_rows(self._encode(key, inputs), len(inputs))
+            return _as_rows(self._encode(key, inputs, merge), len(inputs))
         except torch.cuda.OutOfMemoryError:
             torch.cuda.empty_cache()
             if len(inputs) == 1:
@@ -216,8 +261,8 @@ class Batcher:
                 f"CUDA OOM at {len(inputs)} rows -- token budget now {self._budget}, splitting"
             )
             middle = len(inputs) // 2
-            head = self._encode_with_backoff(key, inputs[:middle])
-            tail = self._encode_with_backoff(key, inputs[middle:])
+            head = self._encode_with_backoff(key, inputs[:middle], merge)
+            tail = self._encode_with_backoff(key, inputs[middle:], merge)
             return list(head) + list(tail)
 
     def _fail(self, job: _Job, exc: BaseException) -> None:

@@ -64,11 +64,20 @@ def load() -> None:
     family = family_for(SPEC)
     family.load()
     _family = family
-    if settings.batching and family.verb == "embed":
+    if family.verb == "embed":
+        # Always, not only when batching is on. The worker exists first to keep
+        # a single thread on the model -- Starlette dispatches the synchronous
+        # handlers to a pool, and neither these models nor torch's CUDA-graph
+        # cache tolerate two threads. `merge` is what the throughput variant
+        # turns on; with it off the worker runs exactly one job per forward and
+        # the vectors are bit-identical to calling encode inline.
         _batcher = Batcher(
-            encode=lambda key, inputs: _encode(family, key, inputs, len(inputs)),
-            token_budget=_initial_budget(family),
+            encode=lambda key, inputs, merge: _encode(
+                family, key, inputs, len(inputs) if merge else None
+            ),
             wait_ms=settings.batch_wait_ms,
+            merge=settings.batching,
+            startup=(lambda: _initial_budget(family)) if settings.batching else None,
         )
     logger.info(
         f"Model loaded: {settings.model_id} on {settings.device} | "
@@ -280,7 +289,7 @@ def _dispatch(family: Family, inputs, task, prompt_name, normalized, extra):
     key = (task, prompt_name, normalized, extra_items, None)
     if _batcher is None:
         return _encode(family, key, inputs)
-    if not all(isinstance(item, str) for item in inputs):
+    if _batcher.merges and not all(isinstance(item, str) for item in inputs):
         key = (task, prompt_name, normalized, extra_items, next(_solo))
     rows = _batcher.submit(inputs, key, _row_lengths(inputs))
     return _restack(rows)
