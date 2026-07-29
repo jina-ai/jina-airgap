@@ -49,7 +49,7 @@ class ChatCompletionRequest(BaseModel):
 
 
 @router.post("/v1/chat/completions")
-async def chat_completions(request: ChatCompletionRequest):
+def chat_completions(request: ChatCompletionRequest):
     engine.require_chat_model()
     reject_foreign_model(request.model)
     if request.stream:

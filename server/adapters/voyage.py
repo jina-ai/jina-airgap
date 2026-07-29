@@ -49,7 +49,7 @@ class MultimodalRequest(BaseModel):
 
 
 @router.post("/v1/multimodalembeddings")
-async def multimodal_embeddings(request: MultimodalRequest):
+def multimodal_embeddings(request: MultimodalRequest):
     """Each input is `{"content": [parts]}`, and all parts of one input fuse
     into a single embedding."""
     reject_foreign_model(request.model)

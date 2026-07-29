@@ -149,7 +149,7 @@ class RerankRequest(BaseModel):
 
 
 @router.post("/v1/embeddings")
-async def create_embeddings(request: EmbeddingsRequest):
+def create_embeddings(request: EmbeddingsRequest):
     """Jina `/v1/embeddings`. Also serves OpenAI, Voyage and Gemini-shaped
     requests, which differ from Jina's only in field naming."""
     reject_foreign_model(request.model)
@@ -175,7 +175,7 @@ async def create_embeddings(request: EmbeddingsRequest):
 
 
 @router.post("/v1/rerank")
-async def rerank(request: RerankRequest):
+def rerank(request: RerankRequest):
     """Jina `/v1/rerank`. Voyage's `top_k` and Cohere's `max_tokens_per_doc`
     are accepted here as aliases; the Cohere *response* shape lives in
     `/v2/rerank`."""

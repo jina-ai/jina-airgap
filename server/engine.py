@@ -3,6 +3,7 @@
 Routes call in here; ``families`` decides what actually happens per model.
 """
 
+import itertools
 import logging
 import time
 from contextlib import nullcontext
@@ -13,6 +14,7 @@ import torch
 
 import serialize
 import telemetry
+from batching import Batcher, autotune_budget
 from catalog import spec_for
 from config import settings
 from errors import BadRequest, ModelNotLoaded
@@ -37,18 +39,49 @@ MULTIMODAL_MODEL_IDS = {
 }
 
 _family: Optional[Family] = None
+_batcher: Optional[Batcher] = None
+_solo = itertools.count()
 
 
 def load() -> None:
-    global _family
+    global _family, _batcher
     logger.info(f"Loading model: {settings.model_id}")
     family = family_for(SPEC)
     family.load()
     _family = family
+    if settings.batching and family.verb == "embed":
+        _batcher = Batcher(
+            encode=lambda key, inputs: _encode(family, key, inputs),
+            token_budget=_initial_budget(family),
+            wait_ms=settings.batch_wait_ms,
+        )
     logger.info(
         f"Model loaded: {settings.model_id} on {settings.device} | "
-        f"multimodal={is_multimodal()} | threads={settings.cpu_threads}"
+        f"multimodal={is_multimodal()} | threads={settings.cpu_threads} | "
+        f"batching={_batcher is not None}"
     )
+
+
+def _initial_budget(family: Family) -> int:
+    if settings.batch_tokens > 0:
+        logger.info(f"Token budget fixed by JINA_BATCH_TOKENS: {settings.batch_tokens}")
+        return settings.batch_tokens
+    try:
+        task, prompt_name = family.resolve_task(None)
+        # ~512 tokens of ordinary prose. A synthetic repeat is fine here: the
+        # probe is measuring how much VRAM a shape costs, not what it means.
+        sample = "semantic search over a document collection " * 64
+
+        def probe(rows: int) -> None:
+            with torch.inference_mode(), family.autocast():
+                family.encode(
+                    [sample] * rows, task, prompt_name, normalized=True, extra=None
+                )
+
+        return autotune_budget(probe, SPEC.context)
+    except Exception as exc:  # noqa: BLE001 - a failed probe must not block startup
+        logger.warning(f"Token-budget autotune failed ({type(exc).__name__}: {exc}); using 8192")
+        return 8192
 
 
 def is_ready() -> bool:
@@ -116,7 +149,7 @@ def tokenizer():
     return _family.tokenizer if _family else None
 
 
-def count_tokens(texts: list[str], cap: Optional[int] = None) -> int:
+def token_lengths(texts: list[str], cap: Optional[int] = None) -> list[int]:
     """Tokens the model will actually process.
 
     ``cap`` is the per-input context limit. It matters for ``truncate=true``:
@@ -137,7 +170,11 @@ def count_tokens(texts: list[str], cap: Optional[int] = None) -> int:
         lengths = [len(text.split()) for text in texts]
     if cap:
         lengths = [min(length, cap) for length in lengths]
-    return sum(lengths)
+    return lengths
+
+
+def count_tokens(texts: list[str], cap: Optional[int] = None) -> int:
+    return sum(token_lengths(texts, cap))
 
 
 def embed(
@@ -164,10 +201,7 @@ def embed(
 
     start = time.perf_counter()
     try:
-        with torch.inference_mode(), family.autocast():
-            embeddings = family.encode(
-                inputs, task, prompt_name, normalized=normalized, extra=extra
-            )
+        embeddings = _dispatch(family, inputs, task, prompt_name, normalized, extra)
     except ValueError as exc:
         # The model is the authority on its own task names, and some -- v4,
         # v5 -- expose none to check against beforehand. When one rejects an
@@ -190,6 +224,67 @@ def embed(
         embeddings = _truncate(embeddings, dimensions, normalized)
 
     return embeddings, n_tokens, tok_per_s
+
+
+def _encode(family: Family, key: tuple, inputs: list):
+    """One forward. The only place ``family.encode`` is called."""
+    task, prompt_name, normalized, extra_items, _ = key
+    with torch.inference_mode(), family.autocast():
+        return family.encode(
+            inputs,
+            task,
+            prompt_name,
+            normalized=normalized,
+            extra=dict(extra_items) or None,
+        )
+
+
+def _dispatch(family: Family, inputs, task, prompt_name, normalized, extra):
+    """Encode directly, or hand the rows to the batcher and wait for them.
+
+    Both paths reach the same ``family.encode``; batching only changes which
+    rows share a forward. Everything that would change the *result* -- task,
+    prompt prefix, normalisation, the native extras -- is in the grouping key,
+    so a merged batch computes exactly what the rows would have computed alone.
+
+    Anything that is not plain text gets a key nothing else can share. Media
+    has no token length to sort by and its cost per row is unrelated to text's,
+    so it is served alone -- still on the worker thread, because the invariant
+    that matters is one thread on the model, not that every batch is full.
+    """
+    extra_items = tuple(sorted((extra or {}).items()))
+    key = (task, prompt_name, normalized, extra_items, None)
+    if _batcher is None:
+        return _encode(family, key, inputs)
+    if not all(isinstance(item, str) for item in inputs):
+        key = (task, prompt_name, normalized, extra_items, next(_solo))
+    rows = _batcher.submit(inputs, key, _row_lengths(inputs))
+    return _restack(rows)
+
+
+def _row_lengths(inputs: list) -> list[int]:
+    """Token length per row, for length-sorted packing. One tokenizer call."""
+    lengths = token_lengths(
+        [item if isinstance(item, str) else "" for item in inputs], cap=SPEC.context
+    )
+    # A non-text row is charged the full context so packing never puts it in a
+    # chunk it would blow up; it is alone in its group anyway.
+    return [
+        length if isinstance(item, str) else (SPEC.context or 512)
+        for item, length in zip(inputs, lengths)
+    ]
+
+
+def _restack(rows: list):
+    """Undo the per-row split so both paths return the same shape.
+
+    Plain embeddings come back as an ``(n, dim)`` matrix; ``late_chunking`` and
+    ``return_multivector`` come back as a list of per-token matrices, which
+    ``_truncate`` and the serializer both already expect to stay a list.
+    """
+    if rows and all(isinstance(row, np.ndarray) and row.ndim == 1 for row in rows):
+        return np.stack(rows)
+    return rows
 
 
 def _truncate(embeddings, dimensions: int, normalized: bool):

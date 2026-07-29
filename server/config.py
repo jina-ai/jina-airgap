@@ -18,6 +18,9 @@ class Settings:
     cpu_threads: int
     license_key: str
     port: int
+    batching: bool
+    batch_tokens: int
+    batch_wait_ms: float
 
 
 def _detect_device() -> str:
@@ -61,6 +64,15 @@ def _init() -> Settings:
         cpu_threads=cpu_threads,
         license_key=os.environ.get("JINA_LICENSE_KEY", ""),
         port=int(os.environ.get("PORT", 8080)),
+        # Off unless the image bakes it on. The batching path is the same
+        # contract either way -- it only changes how rows are grouped into
+        # forwards -- but it is a different concurrency model, so a plain
+        # :cpu / :gpu image keeps the one-request-at-a-time behaviour it
+        # has always had.
+        batching=os.environ.get("JINA_BATCH", "0").lower() in ("1", "on", "true"),
+        # 0 means size it against real VRAM at startup rather than guess.
+        batch_tokens=int(os.environ.get("JINA_BATCH_TOKENS", "0")),
+        batch_wait_ms=float(os.environ.get("JINA_BATCH_WAIT_MS", "5")),
     )
 
 

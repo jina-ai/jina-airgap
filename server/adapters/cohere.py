@@ -63,7 +63,7 @@ class RerankRequest(BaseModel):
 
 
 @router.post("/v2/embed")
-async def embed(request: EmbedRequest):
+def embed(request: EmbedRequest):
     reject_foreign_model(request.model)
     task = INPUT_TYPE_TASKS.get(request.input_type, "retrieval")
 
@@ -112,7 +112,7 @@ async def embed(request: EmbedRequest):
 
 
 @router.post("/v2/rerank")
-async def rerank(request: RerankRequest):
+def rerank(request: RerankRequest):
     reject_foreign_model(request.model)
     results, n_tokens, _ = engine.rerank(
         request.query,

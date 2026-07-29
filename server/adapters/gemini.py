@@ -87,7 +87,7 @@ class BatchEmbedRequest(BaseModel):
 
 
 @router.post("/v1/models/{model_id}:embedContent")
-async def embed_content(model_id: str, request: EmbedContentRequest):
+def embed_content(model_id: str, request: EmbedContentRequest):
     reject_foreign_model(model_id)
     config = request.config()
     item = content_item(request.content.model_dump())
@@ -104,7 +104,7 @@ async def embed_content(model_id: str, request: EmbedContentRequest):
 
 
 @router.post("/v1/models/{model_id}:batchEmbedContents")
-async def batch_embed_contents(model_id: str, request: BatchEmbedRequest):
+def batch_embed_contents(model_id: str, request: BatchEmbedRequest):
     reject_foreign_model(model_id)
     # batchEmbedContents allows a per-request model override; one image serves
     # one model, so a foreign Jina id in any sub-request is still a mistake.

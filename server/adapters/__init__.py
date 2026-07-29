@@ -9,6 +9,15 @@ emits, so that one adapter correctly needs no translation at all.
 
 Adding a schema means adding a module here and touching no model code; adding
 a model means adding a family and touching no HTTP code.
+
+Every handler is a plain ``def``, not ``async def``, and that is deliberate.
+Inference is synchronous, blocking, CPU/GPU-bound work; running it inside a
+coroutine pins the event loop for the whole forward pass, so concurrent callers
+do not merely queue -- ``/health`` stops answering too, and a Docker healthcheck
+can fail while the server is perfectly healthy. A synchronous handler is
+dispatched to Starlette's threadpool instead, which frees the loop and lets the
+batcher see more than one request at a time. None of these handlers await
+anything, so there is nothing to lose by it.
 """
 
 from fastapi import APIRouter, Request
