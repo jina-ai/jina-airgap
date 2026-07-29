@@ -22,6 +22,9 @@ _stats = {
     "total_latency_s": 0.0,
     "last_tok_per_s": 0.0,
     "peak_tok_per_s": 0.0,
+    "forwards": 0,
+    "batched_rows": 0,
+    "peak_batch_rows": 0,
 }
 
 
@@ -48,6 +51,22 @@ def record(n_tokens: int, elapsed_s: float) -> float:
     return tok_per_s
 
 
+def record_forward(rows: int) -> None:
+    """Fold one forward pass into the running stats.
+
+    Separate from ``record`` because the two count different things: a request
+    is what a caller sent, a forward is what the GPU actually ran. Under
+    batching one forward serves many requests, and the ratio between them is
+    the only way to tell a batcher that is coalescing from one that is merely
+    running every request through a worker thread one at a time. Both look
+    identical in tok/s until the box is loaded.
+    """
+    with _lock:
+        _stats["forwards"] += 1
+        _stats["batched_rows"] += rows
+        _stats["peak_batch_rows"] = max(_stats["peak_batch_rows"], rows)
+
+
 def throughput() -> dict | None:
     """The /health throughput block, or None before the first request."""
     with _lock:
@@ -56,10 +75,19 @@ def throughput() -> dict | None:
         return None
     latency = snapshot["total_latency_s"]
     average = snapshot["total_tokens"] / latency if latency > 0 else None
-    return {
+    block = {
         "total_requests": snapshot["total_requests"],
         "total_tokens": snapshot["total_tokens"],
         "last_tok_per_s": round(snapshot["last_tok_per_s"], 1),
         "avg_tok_per_s": round(average, 1) if average else None,
         "peak_tok_per_s": round(snapshot["peak_tok_per_s"], 1),
     }
+    forwards = snapshot["forwards"]
+    if forwards:
+        # Only the embedding path runs through the batcher, so a reranker or a
+        # chat image reports no forwards and these keys stay absent rather than
+        # claiming a batch size of zero.
+        block["forwards"] = forwards
+        block["avg_batch_rows"] = round(snapshot["batched_rows"] / forwards, 1)
+        block["peak_batch_rows"] = snapshot["peak_batch_rows"]
+    return block

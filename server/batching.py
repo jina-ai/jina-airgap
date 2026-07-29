@@ -37,6 +37,8 @@ from typing import Any, Callable, Optional
 import numpy as np
 import torch
 
+import telemetry
+
 logger = logging.getLogger(__name__)
 
 # Ceiling on rows per forward, independent of the token budget: a batch of ten
@@ -248,7 +250,7 @@ class Batcher:
 
     def _encode_with_backoff(self, key: tuple, inputs: list, merge: bool):
         try:
-            return _as_rows(self._encode(key, inputs, merge), len(inputs))
+            encoded = _as_rows(self._encode(key, inputs, merge), len(inputs))
         except torch.cuda.OutOfMemoryError:
             torch.cuda.empty_cache()
             if len(inputs) == 1:
@@ -263,7 +265,11 @@ class Batcher:
             middle = len(inputs) // 2
             head = self._encode_with_backoff(key, inputs[:middle], merge)
             tail = self._encode_with_backoff(key, inputs[middle:], merge)
+            # The halves count themselves; counting here as well would report
+            # one forward that never ran, at a row count no kernel ever saw.
             return list(head) + list(tail)
+        telemetry.record_forward(len(inputs))
+        return encoded
 
     def _fail(self, job: _Job, exc: BaseException) -> None:
         if job.error is None:

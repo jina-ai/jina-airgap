@@ -21,6 +21,7 @@ try:
     import numpy as np
 
     import batching  # noqa: E402
+    import telemetry  # noqa: E402
     from batching import MAX_ROWS, Batcher  # noqa: E402
 except ImportError as exc:
     # server/batching.py imports torch. CI installs neither it nor the weights,
@@ -60,6 +61,15 @@ class Recorder:
 
 def key(task="retrieval", normalized=True):
     return (task, None, normalized, (), None)
+
+
+def _forward_counts(since=(0, 0)):
+    """(forwards, rows) recorded so far, less a previous reading. The counters
+    are process-global, so every assertion here is on a delta."""
+    return (
+        telemetry._stats["forwards"] - since[0],
+        telemetry._stats["batched_rows"] - since[1],
+    )
 
 
 def submit_many(batcher, jobs):
@@ -178,9 +188,28 @@ def main():
 
     b7 = Batcher(oom_once, wait_ms=0, startup=lambda: 10_000_000)
     before = b7._budget
+    counted = _forward_counts()
     got = b7.submit([f"x-{i}" for i in range(32)], key(), [1] * 32)
+    forwards, rows = _forward_counts(since=counted)
     check("OOM backoff still returns every row", [v[0] for v in got] == list(range(32)))
     check("OOM backoff shrank the token budget", b7._budget < before, f"{before} -> {b7._budget}")
+    # 32 rows, nothing above 8 survives: 32 -> 16+16 -> four forwards of 8. The
+    # abandoned attempts must not be counted, and neither must their rows.
+    check("only the forwards that ran are counted", forwards == 4, f"forwards={forwards}")
+    check("counted rows match the rows encoded", rows == 32, f"rows={rows}")
+
+    # --- forward accounting: /health has to show the real batch shape ---
+    rec9 = Recorder(delay=0.05)
+    b9 = Batcher(rec9, wait_ms=20, startup=lambda: 100_000)
+    counted = _forward_counts()
+    submit_many(b9, [(str(i), [f"x-{i}"], key()) for i in range(6)])
+    forwards, rows = _forward_counts(since=counted)
+    check(
+        "every forward is counted exactly once",
+        forwards == len(rec9.calls),
+        f"counted={forwards} actual={len(rec9.calls)}",
+    )
+    check("six single-row jobs account for six rows", rows == 6, f"rows={rows}")
 
     # --- a wrong-length model return is caught, not silently mis-scattered ---
     b8 = Batcher(lambda k, i, m: np.zeros((len(i) - 1, 2)), wait_ms=0,
