@@ -231,12 +231,24 @@ def embed(
     """
     family = _require_embed()
     task, prompt_name = family.resolve_task(task)
-    inputs, texts = _split_inputs(items)
-    n_tokens = count_tokens(texts, cap=SPEC.context) if texts else len(items)
+    inputs, texts, per_row = _split_inputs(items)
+    # One tokenizer pass, used twice: for the usage figure and for the packing
+    # weights. It runs on a threadpool thread, so a second pass over the same
+    # text competes with the model worker for the CPU it needs to feed the GPU.
+    lengths = token_lengths(texts, cap=SPEC.context) if texts else []
+    n_tokens = sum(lengths) if texts else len(items)
 
     start = time.perf_counter()
     try:
-        embeddings = _dispatch(family, inputs, task, prompt_name, normalized, extra)
+        embeddings = _dispatch(
+            family,
+            inputs,
+            _row_lengths(inputs, lengths, per_row),
+            task,
+            prompt_name,
+            normalized,
+            extra,
+        )
     except ValueError as exc:
         # The model is the authority on its own task names, and some -- v4,
         # v5 -- expose none to check against beforehand. When one rejects an
@@ -287,7 +299,7 @@ def _encode(family: Family, key: tuple, inputs: list, batch_size: Optional[int] 
         )
 
 
-def _dispatch(family: Family, inputs, task, prompt_name, normalized, extra):
+def _dispatch(family: Family, inputs, row_lengths, task, prompt_name, normalized, extra):
     """Encode directly, or hand the rows to the batcher and wait for them.
 
     Both paths reach the same ``family.encode``; batching only changes which
@@ -306,21 +318,23 @@ def _dispatch(family: Family, inputs, task, prompt_name, normalized, extra):
         return _encode(family, key, inputs)
     if _batcher.merges and not all(isinstance(item, str) for item in inputs):
         key = (task, prompt_name, normalized, extra_items, next(_solo))
-    rows = _batcher.submit(inputs, key, _row_lengths(inputs))
+    rows = _batcher.submit(inputs, key, row_lengths)
     return _restack(rows)
 
 
-def _row_lengths(inputs: list) -> list[int]:
-    """Token length per row, for length-sorted packing. One tokenizer call."""
-    lengths = token_lengths(
-        [item if isinstance(item, str) else "" for item in inputs], cap=SPEC.context
-    )
-    # A non-text row is charged the full context so packing never puts it in a
-    # chunk it would blow up; it is alone in its group anyway.
-    return [
-        length if isinstance(item, str) else (SPEC.context or 512)
-        for item, length in zip(inputs, lengths)
-    ]
+def _row_lengths(inputs: list, lengths: list[int], per_row: list[int]) -> list[int]:
+    """Packing weight per row, read off the tokenizer pass ``embed`` made.
+
+    A non-text row is charged the full context so packing never puts it in a
+    chunk it would blow up; it is alone in its group anyway.
+    """
+    weights, cursor = [], 0
+    for item, parts in zip(inputs, per_row):
+        weights.append(
+            lengths[cursor] if isinstance(item, str) else (SPEC.context or 512)
+        )
+        cursor += parts
+    return weights
 
 
 def _restack(rows: list):
@@ -473,9 +487,15 @@ def generate(
     return text, prompt_tokens, completion_tokens
 
 
-def _split_inputs(items: list) -> tuple[list, list[str]]:
-    """Return (encode inputs, the text parts that token counting sees)."""
-    inputs, texts = [], []
+def _split_inputs(items: list) -> tuple[list, list[str], list[int]]:
+    """Return (encode inputs, the text parts token counting sees, and how many
+    of those parts each row contributed).
+
+    The last one exists so the caller can redistribute one batched tokenizer
+    pass back over the rows: a fused block contributes several texts, bare
+    media none, so the two lists do not line up index for index.
+    """
+    inputs, texts, per_row = [], [], []
     for item in items:
         if isinstance(item, list):
             # Put non-text parts first in the tuple. The model's
@@ -483,16 +503,20 @@ def _split_inputs(items: list) -> tuple[list, list[str]]:
             # shortcut; non-text-first forces _encode_composite_parts, which
             # handles every ordering correctly.
             inputs.append(tuple(sorted(item, key=lambda part: isinstance(part, str))))
-            texts.extend(part for part in item if isinstance(part, str))
+            parts = [part for part in item if isinstance(part, str)]
+            texts.extend(parts)
+            per_row.append(len(parts))
         elif isinstance(item, str):
             inputs.append(item)
             texts.append(item)
+            per_row.append(1)
         else:
             # ST 3.4.1's _text_length() raises on PIL/BytesIO inside a tuple, so
             # standalone media goes in bare and ST routes it through custom_st's
             # _encode_single_image, which handles pure-image input correctly.
             inputs.append(item)
-    return inputs, texts
+            per_row.append(0)
+    return inputs, texts, per_row
 
 
 def _to_device(inputs: Any, dtype: torch.dtype) -> dict:
