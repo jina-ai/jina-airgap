@@ -5,6 +5,7 @@ Routes call in here; ``families`` decides what actually happens per model.
 
 import itertools
 import logging
+import threading
 import time
 from contextlib import nullcontext
 from typing import Any, Optional
@@ -41,6 +42,20 @@ MULTIMODAL_MODEL_IDS = {
 _family: Optional[Family] = None
 _batcher: Optional[Batcher] = None
 _solo = itertools.count()
+
+# One thread in the model at a time. The routes are synchronous handlers, so
+# Starlette dispatches them to its threadpool and several can arrive at once --
+# and none of these models is thread-safe. Without this, two concurrent
+# requests to a compiled CUDA model corrupt each other's state and surface as
+# `index out of bounds` from inside an Inductor kernel, which reads like a bad
+# input rather than a race.
+#
+# It does not make anything slower than it was: a single GPU runs one forward
+# at a time regardless, and before the handlers were synchronous the event loop
+# was serialising them anyway. What changed is that the serialisation now
+# happens here instead of in the event loop, so /health still answers while a
+# forward is running.
+_MODEL_LOCK = threading.Lock()
 
 
 def load() -> None:
@@ -237,7 +252,7 @@ def embed(
 def _encode(family: Family, key: tuple, inputs: list, batch_size: Optional[int] = None):
     """One forward. The only place ``family.encode`` is called."""
     task, prompt_name, normalized, extra_items, _ = key
-    with torch.inference_mode(), family.autocast():
+    with _MODEL_LOCK, torch.inference_mode(), family.autocast():
         return family.encode(
             inputs,
             task,
@@ -338,7 +353,7 @@ def rerank(
     n_tokens = count_tokens([query] + texts, cap=SPEC.context)
 
     start = time.perf_counter()
-    with torch.inference_mode():
+    with _MODEL_LOCK, torch.inference_mode():
         ranked = family.rank(query, texts, top_n)
     elapsed = time.perf_counter() - start
 
@@ -412,7 +427,7 @@ def generate(
         if settings.device == "cuda" and dtype != torch.float32
         else nullcontext()
     )
-    with torch.inference_mode(), autocast:
+    with _MODEL_LOCK, torch.inference_mode(), autocast:
         output = family.model.generate(
             **inputs,
             generation_config=generation_config,
