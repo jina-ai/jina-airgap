@@ -1,5 +1,4 @@
 import json
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -45,7 +44,7 @@ def spec_for(model_id: str) -> ModelSpec:
     short_id = model_id.split("/")[-1] if "/" in model_id else model_id
     entry = _catalog.get(short_id) or _catalog.get(model_id)
     if entry is None:
-        sys.exit(
+        raise ValueError(
             f"Model '{short_id}' not found in catalog. "
             f"Known models: {sorted(_catalog)}"
         )
