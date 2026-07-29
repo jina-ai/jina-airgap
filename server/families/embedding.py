@@ -120,6 +120,25 @@ class SentenceTransformerFamily(Family):
         else:
             logger.info(f"Running in FP32 (JINA_DTYPE={settings.dtype})")
 
+        # CUDA Graphs and cross-request batching cannot both be on. Two
+        # independent reasons, either sufficient:
+        #
+        #  * The graph-tree manager lives in thread-local storage. The model
+        #    warms up on the startup thread and the batcher runs forwards on
+        #    its worker thread, where the TLS key was never set --
+        #    `assert torch._C._is_key_in_tls(...)` fires on the first real
+        #    request. Warming up on the worker would paper over it until
+        #    something else touched the model from a third thread.
+        #  * Graphs are captured per shape. A token-budget batcher emits a
+        #    different shape almost every forward, so it would recapture
+        #    continuously -- paying the capture cost to avoid a launch cost
+        #    that batching has already amortised.
+        #
+        # Skipping compile is therefore the batched configuration, not a
+        # workaround for it. The unbatched :cpu / :gpu images are unaffected.
+        if settings.batching:
+            logger.info("torch.compile skipped: incompatible with cross-request batching")
+            return
         # torch.compile fuses ops for ~10-30% additional speedup, but
         # xlm-roberta-flash models (jina-embeddings-v3 family, jina-clip-* text
         # tower) mutate an internal rotary _cos_cached tensor inside the forward
