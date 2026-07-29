@@ -18,7 +18,7 @@ import telemetry
 from batching import Batcher, autotune_budget
 from catalog import spec_for
 from config import settings
-from errors import BadRequest, ModelNotLoaded
+from errors import BadRequest, ModelNotLoaded, PayloadTooLarge
 from families import Family, family_for
 from families.reranking import document_text
 
@@ -243,6 +243,18 @@ def embed(
         # argument it is the caller's mistake, so it answers 400 carrying the
         # model's own message rather than a 500 that reads like a crash.
         raise BadRequest(str(exc), field="task") from exc
+    except torch.OutOfMemoryError as exc:
+        # Reached only after the batcher has already halved the batch down to a
+        # single row, so the input itself does not fit -- retrying or sending
+        # less of it is the caller's only remedy, and "Internal Server Error"
+        # tells them neither. Attention over N tokens costs O(N^2) on the
+        # models that materialise a score matrix, so a max-context input can
+        # exceed a 23 GB card on its own.
+        raise PayloadTooLarge(
+            f"Input too large for '{settings.short_model_id}' on this hardware: "
+            f"{n_tokens} tokens exhausted GPU memory. Send fewer tokens per "
+            f"input, or set 'dimensions'/'truncate' to reduce the work."
+        ) from exc
     elapsed = time.perf_counter() - start
 
     if isinstance(embeddings, np.ndarray) and embeddings.ndim == 1 and len(items) == 1:
