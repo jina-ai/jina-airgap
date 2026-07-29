@@ -15,6 +15,12 @@ ARG TORCH_BASE=pytorch/pytorch:2.5.1-cuda12.1-cudnn9-devel
 # ALiBi variants — v1/v2-base series).
 ARG DTYPE=float16
 
+# Cross-request batching. Off for the plain :gpu image, which keeps the
+# one-request-at-a-time behaviour it has always had; the throughput variant
+# bakes BATCH=1. Same server, same contract either way -- batching only
+# changes which rows share a forward pass.
+ARG BATCH=0
+
 # ---------------------------------------------------------------------------
 # Stage 1: Download model weights and pre-cache dynamic modules
 # Uses CPU torch to keep the download stage lean.
@@ -57,6 +63,12 @@ RUN python /tmp/download_model.py
 FROM ${TORCH_BASE} AS runtime
 
 ARG DTYPE=float16
+
+# Cross-request batching. Off for the plain :gpu image, which keeps the
+# one-request-at-a-time behaviour it has always had; the throughput variant
+# bakes BATCH=1. Same server, same contract either way -- batching only
+# changes which rows share a forward pass.
+ARG BATCH=0
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -131,7 +143,8 @@ ENV HF_HUB_OFFLINE=1 \
     HF_HOME=/model_cache \
     TRUST_REMOTE_CODE=1 \
     HF_HUB_TRUST_REMOTE_CODE=1 \
-    JINA_DTYPE=${DTYPE}
+    JINA_DTYPE=${DTYPE} \
+    JINA_BATCH=${BATCH}
 
 # License gate signing secret. Optional; defaults to the public constant in
 # server/license.py. Rotate at bundle time with --build-arg LICENSE_SECRET=...
