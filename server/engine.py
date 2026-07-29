@@ -51,7 +51,7 @@ def load() -> None:
     _family = family
     if settings.batching and family.verb == "embed":
         _batcher = Batcher(
-            encode=lambda key, inputs: _encode(family, key, inputs),
+            encode=lambda key, inputs: _encode(family, key, inputs, len(inputs)),
             token_budget=_initial_budget(family),
             wait_ms=settings.batch_wait_ms,
         )
@@ -73,9 +73,17 @@ def _initial_budget(family: Family) -> int:
         sample = "semantic search over a document collection " * 64
 
         def probe(rows: int) -> None:
+            # batch_size must match the row count or sentence-transformers
+            # chunks the probe at 32 and the measurement is of 32 rows however
+            # many were asked for -- which reads as "memory does not grow".
             with torch.inference_mode(), family.autocast():
                 family.encode(
-                    [sample] * rows, task, prompt_name, normalized=True, extra=None
+                    [sample] * rows,
+                    task,
+                    prompt_name,
+                    normalized=True,
+                    extra=None,
+                    batch_size=rows,
                 )
 
         return autotune_budget(probe, SPEC.context)
@@ -226,7 +234,7 @@ def embed(
     return embeddings, n_tokens, tok_per_s
 
 
-def _encode(family: Family, key: tuple, inputs: list):
+def _encode(family: Family, key: tuple, inputs: list, batch_size: Optional[int] = None):
     """One forward. The only place ``family.encode`` is called."""
     task, prompt_name, normalized, extra_items, _ = key
     with torch.inference_mode(), family.autocast():
@@ -236,6 +244,7 @@ def _encode(family: Family, key: tuple, inputs: list):
             prompt_name,
             normalized=normalized,
             extra=dict(extra_items) or None,
+            batch_size=batch_size,
         )
 
 

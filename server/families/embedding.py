@@ -68,14 +68,26 @@ class SentenceTransformerFamily(Family):
         *,
         normalized: bool = True,
         extra: Optional[dict] = None,
+        batch_size: Optional[int] = None,
     ):
         """Prompt routing applies whenever the model exposes a matching prompts
         entry: v5-omni "Query: "/"Document: " (without it, last-token pooling on
         the LLaMA/Qwen text tower drifts -- cos ~0.16 on nano); v4
         "Query: "/"Passage: " on the retrieval/code LoRAs; code-embeddings
         "Find the most relevant ..."/"Candidate ..." per task family.
+
+        ``batch_size`` comes from the batcher and from nothing else. Left unset,
+        sentence-transformers re-chunks whatever it is given at its own default
+        of 32, which silently undoes the batcher's token-budget packing -- a
+        400-row forward becomes thirteen 32-row forwards and the GPU sees the
+        same small shapes it saw before. It stays unset on the unbatched path
+        on purpose: batch size perturbs floating-point reduction order, so
+        forcing it there would change the vectors the shipped :cpu / :gpu
+        images return today.
         """
         kwargs = {"convert_to_numpy": True, "normalize_embeddings": normalized}
+        if batch_size:
+            kwargs["batch_size"] = batch_size
         kwargs.update(self._task_kwargs(task))
         kwargs.update(extra or {})
         if kwargs.get("return_multivector"):
