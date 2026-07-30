@@ -82,33 +82,21 @@ class Family(ABC):
         and both v5 families, so role words are dropped and the real names come
         off the underlying HF config.
 
-        A PEFT adapter model is a third convention: it names each adapter after
-        the task that adapter implements, and its wrapper config carries no
-        ``task_names`` at all. v5 loads one adapter per task and switches per
-        forward, so those names are its whole task vocabulary and the only place
-        it is written down.
-
         Empty means the model exposes nothing to check against, and the task is
-        passed through rather than guessed at.
+        passed through rather than guessed at. v5 is that case -- its module
+        keeps the model somewhere this cannot see -- so its vocabulary is
+        enforced by the model's own validator instead, which is why
+        ``tasks.v5_task`` must hand an unknown task through untouched.
         """
         names = {
             str(name)
             for name in (getattr(self._auto_config(), "task_names", None) or ())
         }
-        names.update(
-            str(name) for name in (getattr(self._auto_model(), "peft_config", None) or ())
-        )
         for key in getattr(self.model, "prompts", None) or ():
             base = str(key).partition(".")[0].partition("_")[0]
             if base not in _PROMPT_ROLES:
                 names.add(base)
         return frozenset(names)
-
-    def _auto_model(self):
-        """The transformer ``SentenceTransformer`` wraps, if there is one."""
-        first = getattr(self.model, "_first_module", None)
-        module = first() if callable(first) else None
-        return getattr(module, "auto_model", None)
 
     def _auto_config(self):
         """The HF config of the underlying transformer.
@@ -116,7 +104,9 @@ class Family(ABC):
         ``SentenceTransformer`` has no ``.config`` of its own, so reading one
         off it silently yields nothing.
         """
-        return getattr(self._auto_model(), "config", None)
+        first = getattr(self.model, "_first_module", None)
+        module = first() if callable(first) else None
+        return getattr(getattr(module, "auto_model", None), "config", None)
 
     def autocast(self):
         """Autocast context for encode().
