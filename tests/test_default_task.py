@@ -60,6 +60,20 @@ def main():
           default_for("jina-embeddings-v2-base-en") == "retrieval")
     check("unknown family -> retrieval", tasks.default_task("") == "retrieval")
 
+    # --- v5 must not rewrite a task it does not recognise ---
+    # check_task rejects it upstream; if anything ever gets past that, the
+    # model's own validator has to see the value the caller actually sent.
+    # Substituting a valid task here answered `text_matching` -- one wrong
+    # character -- with retrieval vectors and a 200.
+    v5 = tasks.v5_task
+    for bad in ("text_matching", "not-a-real-task", "Retrieval.Query"):
+        check(f"v5 leaves {bad!r} for the model to reject", v5(bad) == bad)
+    check("v5 collapses .query to the bare task", v5("retrieval.query") == "retrieval")
+    check("v5 collapses .passage to the bare task",
+          v5("retrieval.passage") == "retrieval")
+    for good in ("retrieval", "text-matching", "clustering", "classification"):
+        check(f"v5 passes {good!r} through", v5(good) == good)
+
     print()
     total, passed = len(_results), sum(_results)
     print(f"{PASS if passed == total else FAIL}: {passed}/{total}")

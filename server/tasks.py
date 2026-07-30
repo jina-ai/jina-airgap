@@ -69,6 +69,17 @@ def default_task(family: str) -> str:
     return _DEFAULTS.get(family, "retrieval")
 
 
+def v5_task(task: str) -> str:
+    """Collapse v5's ``.query``/``.passage`` suffix onto the adapter name.
+
+    A task not in the table is returned unchanged rather than replaced with a
+    default. v5's own encode raises on a task it does not know, and that error
+    is the point: substituting a valid task here answered ``text_matching`` --
+    one wrong character -- with retrieval vectors and a 200.
+    """
+    return V5_TASKS.get(task, task)
+
+
 def map_prompt_name(task: str, prompts: Optional[dict]) -> Optional[str]:
     """Pick the matching ST prompt_name for ``task`` from the model's prompts dict.
 

@@ -189,9 +189,7 @@ class EmbeddingsV5Family(SentenceTransformerFamily):
         # For omni the .query/.passage suffix is forwarded via prompt_name;
         # v5-text has no prompts map so prompt_name stays None.
         task = task or tasks.default_task(self.spec.family)
-        return tasks.V5_TASKS.get(task, "retrieval"), tasks.map_prompt_name(
-            task, self.prompts
-        )
+        return tasks.v5_task(task), tasks.map_prompt_name(task, self.prompts)
 
 
 class EmbeddingsV5OmniFamily(EmbeddingsV5Family):
