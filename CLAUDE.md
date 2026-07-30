@@ -6,6 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 An on-prem / air-gapped deployment toolkit for Jina AI models. It bundles embedding, reranker, reader, ColBERT, CLIP, and VLM models into self-contained Docker images that run fully offline. It is **not** a model-training or LLM-chat serving project — inference is embeddings + reranking, served via `sentence-transformers` / HuggingFace `transformers` on PyTorch (no vLLM, ONNX, or TensorRT).
 
+## How this is publicly positioned
+
+Launch post: [On-prem in under 5 minutes: Jina embedding models now available for on-prem deployment](https://www.elastic.co/search-labs/blog/on-prem-ai-jina-embedding-models), Scott Martens, Elastic Search Labs, 2026-07-23. Useful when writing docs or user-facing copy, so the repo and the public story stay consistent.
+
+- The pitch is all 28 models as self-contained Docker containers with **no external connections, no license servers, and no telemetry**, deployable in under five minutes. The "five minutes" claim maps to the Phase-2 prebuilt path (`scripts/pull-prebuilt.sh` + `docker load`), not to `bundle`, which builds from scratch and takes much longer. The post notes users need a GitHub account and access token to pull from GHCR.
+- Named use cases: air-gapped / firewalled environments (defense, intelligence), regulatory compliance (HIPAA, GDPR, data sovereignty), latency-critical edge (robotics, vehicles), cost predictability at high inference volume, and liability reduction (e.g. law firms with privileged material). Cloud APIs are positioned as still preferable for intermittent or batch usage.
+- Headline models called out publicly: `jina-embeddings-v5-omni`, `jina-embeddings-v5-text-small`, `jina-embeddings-v5-text-nano`, `jina-reranker-v3`, `jina-clip-v2`.
+- Positioned as a drop-in replacement at two levels: for the OpenAI / Cohere / Voyage AI / Gemini / Jina API schemas, and for models served by **EIS** (Elastic Inference Service) in air-gapped Elastic deployments.
+- Licensing framing: commercial licensing via Elastic Sales; non-commercial use falls under CC BY-NC 4.0. "No license servers" is consistent with the local HMAC gate below, which never phones home.
+
 ## The two-phase mental model
 
 Everything is organized around two phases, and confusing them causes most mistakes:
