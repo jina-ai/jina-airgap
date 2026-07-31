@@ -1,10 +1,28 @@
 import base64
 import io
+import urllib.error
+import urllib.parse
+import urllib.request
 from typing import Union
 
-from errors import BadRequest, PayloadTooLarge
+from errors import BadRequest, JinaError, PayloadTooLarge
 
 MAX_MEDIA_BYTES = 10 * 1024 * 1024  # 10 MB per input
+
+# A URL in the request body is the CALLER's fetch, and refusing it in code
+# protected nobody. The air gap is enforced by the network the container is
+# given -- `test_airgap.sh` runs every image with `--network none` and proves a
+# socket cannot open -- while `HF_HUB_OFFLINE` governs only what the container
+# downloads on its own initiative at load time. Neither is weakened by reading
+# a host the operator's own network can already reach, and the deployment this
+# refusal actually broke is the ordinary one: images on an internal server.
+#
+# What stays enforced here is the blast radius. http(s) only, because a `file:`
+# URL would read the container's filesystem rather than the caller's; one short
+# budget, so a dead host does not hold a thread; the same byte ceiling as an
+# inline payload; and a bounded redirect chain re-checked at every hop.
+FETCH_TIMEOUT_S = 8.0
+MAX_REDIRECTS = 3
 
 IMAGE_MIMES = {
     "image/png",
@@ -69,6 +87,68 @@ def _decode_b64(b64_str: str) -> tuple:
     return raw, mime_type
 
 
+class _SchemeCheckedRedirects(urllib.request.HTTPRedirectHandler):
+    """urllib follows redirects to ftp: as well. Re-check every hop."""
+
+    max_redirections = MAX_REDIRECTS
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _require_fetchable(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+# No proxy handler and no cookie jar: whatever the operator configured for the
+# container is what a caller's URL gets, with no state carried between requests.
+_OPENER = urllib.request.build_opener(_SchemeCheckedRedirects)
+
+
+def _require_fetchable(url: str) -> None:
+    scheme = urllib.parse.urlsplit(url).scheme.lower()
+    if scheme not in ("http", "https"):
+        raise BadRequest(
+            f"Unsupported URL scheme '{scheme or 'none'}'. Media is read from "
+            f"http, https, or an inline data: URL. A file: or gs: URL would "
+            f"read the container's own disk and credentials, not yours."
+        )
+
+
+def _fetch(url: str) -> tuple:
+    """Retrieve caller-supplied media. Returns (raw_bytes, mime_type)."""
+    _require_fetchable(url)
+    try:
+        with _OPENER.open(url, timeout=FETCH_TIMEOUT_S) as response:
+            # One byte over the limit is enough to know, and stops a hostile
+            # or mistaken URL from being read into memory in full.
+            raw = response.read(MAX_MEDIA_BYTES + 1)
+            mime = (response.headers.get_content_type() or "").lower()
+    except JinaError:
+        # A refused redirect already says exactly what was wrong; wrapping it
+        # in "could not be read" buries the scheme name inside a parenthesis.
+        raise
+    except urllib.error.HTTPError as exc:
+        raise BadRequest(f"{url} answered {exc.code} {exc.reason}")
+    except Exception as exc:
+        raise BadRequest(
+            f"{url} could not be read ({type(exc).__name__}: {exc}). This "
+            f"container reaches only what its network allows; send the media "
+            f"inline as a data: URL if the host is not reachable from here."
+        )
+    if len(raw) > MAX_MEDIA_BYTES:
+        raise PayloadTooLarge(
+            f"{url} is over the {MAX_MEDIA_BYTES:,} byte limit for one input"
+        )
+    return raw, mime
+
+
+def _from_url_or_data(url: str, default_mime: str = "") -> list:
+    """A media reference, however the caller wrote it down."""
+    if url.startswith("data:"):
+        raw, mime = _decode_b64(url)
+    else:
+        raw, mime = _fetch(url)
+    return [_bytes_to_st_input(raw, mime or default_mime)]
+
+
 def _detect_mime(raw: bytes, hint: str = "") -> str:
     """Detect MIME type from magic bytes; fall back to hint."""
     if raw[:8] == b"\x89PNG\r\n\x1a\n":
@@ -124,6 +204,16 @@ def _bytes_to_st_input(raw: bytes, mime_hint: str = ""):
         return io.BytesIO(raw)
 
 
+def _url_of(part: dict, key: str) -> str:
+    """Both spellings are in the wild: `{"image_url": "http..."}` and
+    `{"image_url": {"url": "http..."}}`."""
+    value = part.get(key, "")
+    url = value.get("url", "") if isinstance(value, dict) else value
+    if not isinstance(url, str) or not url:
+        raise BadRequest(f"{key} must be a URL or a data: URL")
+    return url
+
+
 def _parse_typed_base64(item: dict, key: str, default_mime: str) -> list:
     """Parse image_base64 / audio_base64 / video_base64 typed fields."""
     inner = item.get(key, "")
@@ -145,7 +235,7 @@ def _parse_content_part(part: dict) -> list:
     Handles:
     - {"type": "text", "text": "..."}
     - {"type": "image", "format": "base64", "value": "..."}         (Elastic format)
-    - {"type": "image_url", "image_url": {"url": "data:..."}}       (Cohere/Voyage)
+    - {"type": "image_url", "image_url": {"url": "https://..."}}    (Cohere/Voyage)
     - {"type": "image_base64", "image_base64": "data:..." | {...}}
     - {"type": "audio_base64", "audio_base64": "data:..." | {...}}
     - {"type": "video_base64", "video_base64": "data:..." | {...}}
@@ -167,23 +257,13 @@ def _parse_content_part(part: dict) -> list:
         raw, mime = _decode_b64(part["value"])
         return [_bytes_to_st_input(raw, mime or "image/jpeg")]
 
-    # Cohere/Voyage: {"type": "image_url", "image_url": {"url": "data:..."}}
+    # Cohere/Voyage: {"type": "image_url", "image_url": {"url": "..."}}
     if t == "image_url":
-        url_val = part.get("image_url", {})
-        url = url_val.get("url", url_val) if isinstance(url_val, dict) else str(url_val)
-        if not url.startswith("data:"):
-            raise BadRequest(
-                "image_url: only data: URLs (base64) are supported in air-gapped mode"
-            )
-        raw, mime = _decode_b64(url)
-        return [_bytes_to_st_input(raw, mime)]
+        return _from_url_or_data(_url_of(part, "image_url"))
 
-    # Voyage documents a video_url part. Fetching it needs egress, so name the
-    # reason rather than let it fall through to "unknown part type".
+    # Voyage: {"type": "video_url", "video_url": "..."}
     if t == "video_url":
-        raise BadRequest(
-            "video_url: only data: URLs (base64) are supported in air-gapped mode"
-        )
+        return _from_url_or_data(_url_of(part, "video_url"), "video/mp4")
 
     # Gemini: {"inlineData": {"mimeType": "...", "data": "..."}}
     if "inlineData" in part:

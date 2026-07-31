@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 import engine
 import serialize
 from errors import BadRequest, JinaError, request_id
-from media import _bytes_to_st_input as bytes_to_st_input, _decode_b64 as decode_b64
+from media import _from_url_or_data as from_url_or_data
 from media import fuse_content
 
 from .jina import input_type_task, reject_foreign_model
@@ -73,7 +73,7 @@ def embed(request: EmbedRequest):
         texts, image_count = [], len(items)
     elif request.images is not None:
         engine.require_multimodal()
-        items = [bytes_to_st_input(*decode_b64(url)) for url in request.images]
+        items = [from_url_or_data(url)[0] for url in request.images]
         texts, image_count = request.texts or [], len(request.images)
     else:
         items = request.texts or []

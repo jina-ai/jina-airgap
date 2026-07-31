@@ -113,11 +113,33 @@ class EmbeddingsRequest(BaseModel):
             )
         return value if value is not None else "float"
 
-    @field_validator("input")
+    @field_validator("input", mode="before")
     @classmethod
     def _non_empty(cls, value):
         if isinstance(value, list) and not value:
             raise ValueError("Input list cannot be empty. Provide at least one item.")
+        # OpenAI's `input` also takes pre-tokenised ids -- `[1212, 318]` or a
+        # list of those. It is the one thing on this surface that genuinely
+        # cannot be translated: the ids are cl100k_base, decoding them needs
+        # OpenAI's vocabulary, and shipping that in an offline image is not an
+        # option. Say which text to send instead of letting the type union
+        # reject it as "input.str: Input should be a valid string" three times
+        # over, which reads like the text itself was wrong.
+        items = value if isinstance(value, list) else [value]
+        if any(
+            isinstance(item, int)
+            or (
+                isinstance(item, list)
+                and item
+                and all(isinstance(x, int) for x in item)
+            )
+            for item in items
+        ):
+            raise ValueError(
+                "Token-id input is not supported: the ids would have to be "
+                "decoded with the tokenizer that produced them, which is not "
+                "in this image. Send the original text instead."
+            )
         return value
 
     @model_validator(mode="after")

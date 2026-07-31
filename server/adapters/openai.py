@@ -17,6 +17,9 @@ Only `invalid_request_error` and `server_error` appear as `type` values in the
 spec. `authentication_error` and `rate_limit_error` are SDK class names, not
 spec values, and an air-gapped single-model container has neither auth nor
 rate limits, so they are not emitted.
+
+`image_url` takes an http(s) URL as well as an inline data: one -- see the
+fetch rules in `media`.
 """
 
 import time
@@ -28,7 +31,7 @@ from pydantic import BaseModel, ConfigDict
 import engine
 from config import settings
 from errors import BadRequest, JinaError
-from media import _bytes_to_st_input as bytes_to_st_input, _decode_b64 as decode_b64
+from media import _from_url_or_data as from_url_or_data
 
 from .jina import reject_foreign_model
 
@@ -122,11 +125,6 @@ def parse_message(message: dict) -> tuple:
                 url = url.get("url", "")
             if not isinstance(url, str):
                 raise BadRequest("image_url.url must be a string")
-            if not url.startswith("data:"):
-                raise BadRequest(
-                    "image_url.url must be a base64 data URL "
-                    "(offline server cannot fetch http(s) URLs)"
-                )
         elif kind == "image":
             # Elastic-style {"type":"image","format":"base64","value":"..."}
             if part.get("format") != "base64":
@@ -134,7 +132,7 @@ def parse_message(message: dict) -> tuple:
             url = part.get("value", "")
         else:
             raise BadRequest(f"Unsupported content part type: {kind!r}")
-        image = bytes_to_st_input(*decode_b64(url))
+        image = from_url_or_data(url)[0]
         parts.append({"type": "image", "image": image})
         images.append(image)
     return message.get("role", "user"), parts, images
