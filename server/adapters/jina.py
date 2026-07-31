@@ -34,6 +34,7 @@ from pydantic import (
     model_validator,
 )
 
+import catalog
 import engine
 import serialize
 import tasks
@@ -244,10 +245,17 @@ def reject_foreign_model(requested: Optional[str]) -> None:
         return
     if requested.split("/")[-1] == settings.short_model_id:
         return
+    remedy = (
+        f"One model per image: run the '{requested}' image instead, set "
+        f"'model' to '{settings.short_model_id}', or drop the field."
+        if catalog.is_known(requested)
+        # Telling them to run the 'text-embedding-3-small' image would send
+        # them after something that does not exist.
+        else f"'{requested}' is not a model this project ships. Set 'model' "
+        f"to '{settings.short_model_id}', or drop the field."
+    )
     raise BadRequest(
-        f"This image serves '{settings.short_model_id}', not '{requested}'. "
-        f"One model per image: point the client at the '{requested}' image, "
-        f"set 'model' to '{settings.short_model_id}', or drop the field.",
+        f"This image serves '{settings.short_model_id}', not '{requested}'. " + remedy,
         field="model",
     )
 

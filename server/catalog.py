@@ -40,6 +40,15 @@ def _load() -> dict:
 _catalog: dict = _load()
 
 
+def is_known(model_id: str) -> bool:
+    """Does this project ship that model at all?
+
+    The difference decides what a wrong `model` field is told to do: pull a
+    different image of ours, or stop naming another vendor's model.
+    """
+    return model_id.split("/")[-1] in _catalog or model_id in _catalog
+
+
 def spec_for(model_id: str) -> ModelSpec:
     short_id = model_id.split("/")[-1] if "/" in model_id else model_id
     entry = _catalog.get(short_id) or _catalog.get(model_id)
