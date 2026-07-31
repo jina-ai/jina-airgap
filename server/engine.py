@@ -241,33 +241,75 @@ def _check_task(family: Family, task: Optional[str]) -> None:
     )
 
 
-def fit_task(candidates: tuple, role: Optional[str]) -> Optional[str]:
+def fit_task(
+    candidates: tuple, role: Optional[str], *, field: str, value: str
+) -> Optional[str]:
     """Turn another vendor's ``(preferred families, role)`` into a task THIS
-    model has.
+    model has -- or refuse, when there is nothing honest to turn it into.
 
-    The mirror image of ``_check_task``, and the two must not be confused.
-    ``task`` is Jina's own field: it names a task directly, the caller can
-    spell any of them, and ``retreival.qeury`` is a typo that has to be
-    refused. A vendor's ``input_type`` / ``taskType`` is a closed
-    single-choice list: ``search_query`` is the *only* thing a Cohere client
-    can say for a query, and code-embeddings has no ``retrieval`` task, so
-    refusing the pair would reject every request that client is capable of
-    making. It is fitted instead -- first preferred family the model knows,
-    else the model's own default -- and the role the caller did manage to
-    express is preserved on top.
+    A vendor's ``input_type`` / ``taskType`` is a closed single-choice list.
+    ``search_query`` is the *only* thing a Cohere client can say for a query,
+    and code-embeddings has no ``retrieval`` task, so refusing that pair would
+    reject every request that client is capable of making. The role is the
+    analogy that survives: a query is still a query, so it lands on the
+    model's own default family as ``nl2code.query``.
 
-    Returning ``None`` means "no task", which is a real answer: it is what the
-    vendor's own "unspecified" value means, and it routes through the same
-    default the native API uses when ``task`` is omitted.
+    ``classification`` is the other case, and it must not be treated the same
+    way. Code-embeddings has no classification task and no role to fall back
+    on, so there is no reading of the request this model can answer -- and
+    ``task=classification`` is already a 400 on the native route. Returning
+    ``nl2code`` vectors instead would be the exact defect this rewrite exists
+    to remove, in a new place: a wrong answer with a 200 on it.
+
+    Returning ``None`` means "no task", which is a real answer for two cases:
+    the vendor's own "unspecified" value, and a model that exposes no
+    vocabulary at all -- nothing to check against is not grounds to refuse.
     """
     family = _require_embed()
     known = family.known_tasks
     base = next((name for name in candidates if name in known), None)
-    if base is None:
-        if role is None:
-            return None
-        base = tasks.default_task(SPEC.family).partition(".")[0]
-    return f"{base}.{role}" if role else base
+    if base is not None:
+        return f"{base}.{role}" if role else base
+    if not candidates:
+        return None
+    if role:
+        return f"{tasks.default_task(SPEC.family).partition('.')[0]}.{role}"
+    if not known:
+        return None
+    raise BadRequest(
+        f"'{value}' has no counterpart in {settings.short_model_id}, which "
+        f"serves: {', '.join(sorted(known))}. Nothing in the request says "
+        f"whether the text is a query or a document either, so there is no "
+        f"reading of it this model can answer.",
+        field=field,
+    )
+
+
+def named_task(name: str, *, field: str, vendor_values) -> str:
+    """Accept a task named outright in a vendor's field.
+
+    Cohere has no word for ``nl2code.query`` and never will, so a caller who
+    knows this image is a Jina model has no way to ask for it through Cohere's
+    envelope. The envelope should not be what stops them: the field is
+    Cohere's, the vocabulary can be ours. It is the same move as writing
+    "jiaozi" in English rather than pretending it is a dumpling.
+
+    Only names this model actually serves; anything else is still a typo.
+    """
+    known = _require_embed().known_tasks
+    if known and name.partition(".")[0] in known:
+        return name
+    raise BadRequest(
+        f"Unknown {field} '{name}'. Accepted: {', '.join(sorted(vendor_values))}"
+        + (
+            f", or a task {settings.short_model_id} serves "
+            f"({', '.join(sorted(known))}, optionally suffixed .query "
+            f"or .passage)."
+            if known
+            else "."
+        ),
+        field=field,
+    )
 
 
 def _check_dimensions(dimensions: Optional[int]) -> None:

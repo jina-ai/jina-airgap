@@ -253,49 +253,42 @@ def reject_foreign_model(requested: Optional[str]) -> None:
 
 
 def resolve_task(request: EmbeddingsRequest) -> Optional[str]:
-    if request.input_type:
-        return input_type_task(request.input_type)
-    return native_task(request.task)
+    """Whichever field the caller used to say what the text is for.
 
-
-def native_task(task: Optional[str]) -> Optional[str]:
-    """Jina's own ``task``, except when it is carrying a Gemini value.
-
-    ``task_type`` is an accepted alias for this field, which is Gemini's
+    ``task_type`` is an accepted alias for ``task``, and it is Gemini's
     spelling -- so accepting the name while rejecting the values it can hold
-    left a Gemini-shaped client failing on a field we advertised. The two
+    left a Gemini-shaped client failing on a field we advertise. The two
     namespaces do not overlap (``RETRIEVAL_QUERY`` against ``retrieval.query``),
     so a value from theirs is translated and everything else is Jina's own,
     refused by the core if it is wrong.
     """
-    if not task:
+    if request.input_type:
+        return input_type_task(request.input_type)
+    if not request.task:
         return None
-    roles = tasks.TASK_TYPE_ROLES.get(task)
-    return engine.fit_task(*roles) if roles else task
+    roles = tasks.TASK_TYPE_ROLES.get(request.task)
+    if roles:
+        return engine.fit_task(*roles, field="task", value=request.task)
+    return request.task
 
 
 def input_type_task(input_type: Optional[str]) -> Optional[str]:
-    """Translate a vendor's ``input_type`` into a task this model has.
+    """A vendor's ``input_type``, as a task this model has.
 
-    Shared by every schema with this field, and it has to avoid two opposite
-    mistakes. The old ``.get(value, "retrieval")`` substituted a default for a
-    value outside the vendor's own enum, so ``search_documnt`` was served
-    query vectors and a 200. Replacing it with a strict lookup then refused
-    ``image``, which IS one of Cohere's five -- and a Cohere client sending an
-    image has no other value it could use.
-
-    So: outside the vendor's enum is refused, inside it is always answered.
+    Shared by every schema with this field, and there are three answers, not
+    two. A value in the vendor's enum is fitted to the model. A task this
+    model serves is taken as written, even though the vendor has no such value
+    -- their enum is a limit on their models, not on ours. Anything else is a
+    typo and is refused, as the vendor would refuse it.
     """
     if not input_type:
         return None
     roles = tasks.INPUT_TYPE_ROLES.get(input_type)
-    if roles is None:
-        raise BadRequest(
-            f"Unknown input_type '{input_type}'. Valid values: "
-            f"{', '.join(sorted(tasks.INPUT_TYPE_ROLES))}.",
-            field="input_type",
-        )
-    return engine.fit_task(*roles)
+    if roles is not None:
+        return engine.fit_task(*roles, field="input_type", value=input_type)
+    return engine.named_task(
+        input_type, field="input_type", vendor_values=tasks.INPUT_TYPE_ROLES
+    )
 
 
 def embedding_items(raw: Union[str, dict, list]) -> list:

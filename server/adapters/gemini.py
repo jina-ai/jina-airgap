@@ -141,12 +141,13 @@ def batch_embed_contents(model_id: str, request: BatchEmbedRequest):
 
 
 def _task_of(config: dict) -> Optional[str]:
-    """Gemini's `taskType`, fitted to this model, or a refusal.
+    """Gemini's `taskType`, as a task this model has.
 
     Substituting a default for an unrecognised task type answered a typo with
-    retrieval vectors and a 200; refusing everything outside our own map then
-    rejected ``TASK_TYPE_UNSPECIFIED``, which is Gemini's own first enum value.
-    Only what Gemini itself refuses is refused here.
+    retrieval vectors and a 200; refusing everything outside Gemini's enum then
+    rejected the tasks this model actually serves, which Gemini has no value
+    for. Both of Gemini's nine and this model's own names are answered; a typo
+    is neither.
 
     An absent `taskType` no longer forces ``retrieval`` either. Gemini treats
     it as unspecified, and unspecified is each model's own default -- the same
@@ -157,13 +158,11 @@ def _task_of(config: dict) -> Optional[str]:
     if not task_type:
         return None
     roles = tasks.TASK_TYPE_ROLES.get(task_type)
-    if roles is None:
-        raise BadRequest(
-            f"Unknown taskType '{task_type}'. Valid values: "
-            f"{', '.join(sorted(tasks.TASK_TYPE_ROLES))}.",
-            field="taskType",
-        )
-    return engine.fit_task(*roles)
+    if roles is not None:
+        return engine.fit_task(*roles, field="taskType", value=task_type)
+    return engine.named_task(
+        task_type, field="taskType", vendor_values=tasks.TASK_TYPE_ROLES
+    )
 
 
 def _truncate_of(config: dict) -> bool:
