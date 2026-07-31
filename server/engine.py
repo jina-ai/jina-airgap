@@ -14,6 +14,7 @@ import numpy as np
 import torch
 
 import serialize
+import tasks
 import telemetry
 from batching import Batcher, autotune_budget
 from catalog import spec_for
@@ -238,6 +239,35 @@ def _check_task(family: Family, task: Optional[str]) -> None:
         f"(optionally suffixed .query or .passage).",
         field="task",
     )
+
+
+def fit_task(candidates: tuple, role: Optional[str]) -> Optional[str]:
+    """Turn another vendor's ``(preferred families, role)`` into a task THIS
+    model has.
+
+    The mirror image of ``_check_task``, and the two must not be confused.
+    ``task`` is Jina's own field: it names a task directly, the caller can
+    spell any of them, and ``retreival.qeury`` is a typo that has to be
+    refused. A vendor's ``input_type`` / ``taskType`` is a closed
+    single-choice list: ``search_query`` is the *only* thing a Cohere client
+    can say for a query, and code-embeddings has no ``retrieval`` task, so
+    refusing the pair would reject every request that client is capable of
+    making. It is fitted instead -- first preferred family the model knows,
+    else the model's own default -- and the role the caller did manage to
+    express is preserved on top.
+
+    Returning ``None`` means "no task", which is a real answer: it is what the
+    vendor's own "unspecified" value means, and it routes through the same
+    default the native API uses when ``task`` is omitted.
+    """
+    family = _require_embed()
+    known = family.known_tasks
+    base = next((name for name in candidates if name in known), None)
+    if base is None:
+        if role is None:
+            return None
+        base = tasks.default_task(SPEC.family).partition(".")[0]
+    return f"{base}.{role}" if role else base
 
 
 def _check_dimensions(dimensions: Optional[int]) -> None:

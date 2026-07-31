@@ -29,6 +29,7 @@ from pydantic import (
 
 import engine
 import serialize
+import tasks
 from config import settings
 from errors import (
     BadRequest,
@@ -39,18 +40,6 @@ from errors import (
 from media import _parse_openai_item as parse_openai_item
 
 router = APIRouter(tags=["Jina"])
-
-# Voyage and Cohere both express "is this a query or a document" as
-# `input_type`; Jina expresses it as a task suffix. Same concept, so it maps
-# rather than living in an adapter.
-INPUT_TYPE_TASKS = {
-    "query": "retrieval.query",
-    "document": "retrieval.passage",
-    "search_query": "retrieval.query",
-    "search_document": "retrieval.passage",
-    "classification": "classification",
-    "clustering": "clustering",
-}
 
 # Native parameters that change the forward pass rather than the wire format.
 # Forwarded only when the loaded model's encode() genuinely takes them.
@@ -217,29 +206,49 @@ def reject_foreign_model(requested: Optional[str]) -> None:
 
 
 def resolve_task(request: EmbeddingsRequest) -> Optional[str]:
-    return input_type_task(request.input_type) or request.task
+    if request.input_type:
+        return input_type_task(request.input_type)
+    return native_task(request.task)
+
+
+def native_task(task: Optional[str]) -> Optional[str]:
+    """Jina's own ``task``, except when it is carrying a Gemini value.
+
+    ``task_type`` is an accepted alias for this field, which is Gemini's
+    spelling -- so accepting the name while rejecting the values it can hold
+    left a Gemini-shaped client failing on a field we advertised. The two
+    namespaces do not overlap (``RETRIEVAL_QUERY`` against ``retrieval.query``),
+    so a value from theirs is translated and everything else is Jina's own,
+    refused by the core if it is wrong.
+    """
+    if not task:
+        return None
+    roles = tasks.TASK_TYPE_ROLES.get(task)
+    return engine.fit_task(*roles) if roles else task
 
 
 def input_type_task(input_type: Optional[str]) -> Optional[str]:
-    """Translate a provider's ``input_type`` to a Jina task, or refuse it.
+    """Translate a vendor's ``input_type`` into a task this model has.
 
-    Shared by every schema that has this field. The old
-    ``.get(value, "retrieval")`` turned a typo into a valid task, so a caller
-    asking for ``search_documnt`` was served query vectors and a 200. Which
-    names are valid is the schema layer's business -- the model has never
-    heard of ``search_document`` -- so this refuses here and names the
-    vocabulary the caller was using.
+    Shared by every schema with this field, and it has to avoid two opposite
+    mistakes. The old ``.get(value, "retrieval")`` substituted a default for a
+    value outside the vendor's own enum, so ``search_documnt`` was served
+    query vectors and a 200. Replacing it with a strict lookup then refused
+    ``image``, which IS one of Cohere's five -- and a Cohere client sending an
+    image has no other value it could use.
+
+    So: outside the vendor's enum is refused, inside it is always answered.
     """
     if not input_type:
         return None
-    task = INPUT_TYPE_TASKS.get(input_type)
-    if task is None:
+    roles = tasks.INPUT_TYPE_ROLES.get(input_type)
+    if roles is None:
         raise BadRequest(
             f"Unknown input_type '{input_type}'. Valid values: "
-            f"{', '.join(sorted(INPUT_TYPE_TASKS))}.",
+            f"{', '.join(sorted(tasks.INPUT_TYPE_ROLES))}.",
             field="input_type",
         )
-    return task
+    return engine.fit_task(*roles)
 
 
 def embedding_items(raw: Union[str, dict, list]) -> list:

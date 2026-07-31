@@ -155,6 +155,15 @@ class SentenceTransformerFamily(Family):
 
 
 class EmbeddingsV3Family(SentenceTransformerFamily):
+    @property
+    def known_tasks(self) -> frozenset[str]:
+        # v3's prompts are keyed by task, so the generic reader gets most of
+        # the vocabulary off them -- but not `clustering`, which v3 accepts and
+        # serves through the text-matching prompt rather than one of its own.
+        # Reading the prompts alone therefore refused a task the public API
+        # takes. The accepted vocabulary is V3_TASKS; that is what it is for.
+        return frozenset(name.partition(".")[0] for name in tasks.V3_TASKS)
+
     def resolve_task(self, task: Optional[str]) -> tuple[Optional[str], Optional[str]]:
         # v3 no-task: prod runs the raw base xlm-roberta with no LoRA and no
         # prefix when ``task`` is omitted (verified against api.jina.ai --
@@ -184,6 +193,16 @@ class EmbeddingsV4Family(SentenceTransformerFamily):
 
 
 class EmbeddingsV5Family(SentenceTransformerFamily):
+    @property
+    def known_tasks(self) -> frozenset[str]:
+        # v5 keeps the model behind a custom module, so the generic reader
+        # finds no task_names and no task-keyed prompts. The vocabulary is not
+        # actually unknown -- the model's own validator prints it: "Must be one
+        # of ['retrieval', 'text-matching', 'clustering', 'classification']".
+        # Stating it here is what lets a Cohere or Gemini request be fitted to
+        # this model instead of falling back as if it had no tasks at all.
+        return frozenset(name.partition(".")[0] for name in tasks.V5_TASKS)
+
     def resolve_task(self, task: Optional[str]) -> tuple[Optional[str], Optional[str]]:
         # v5 (text and omni): the custom encode only accepts the bare base task.
         # For omni the .query/.passage suffix is forwarded via prompt_name;

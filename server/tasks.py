@@ -1,4 +1,4 @@
-"""Task-string vocabulary shared by the embedding families.
+"""Every task vocabulary: ours, the model families', and the other vendors'.
 
 The API-level task string carries two pieces of information that different
 model families consume in different ways:
@@ -16,7 +16,8 @@ model families consume in different ways:
    ``ValueError: Prompt name 'X' not found in...``.
 
 Each family applies these two rules its own way in ``families.embedding``;
-what lives here is the shared vocabulary those rules are written against.
+what lives here is the shared vocabulary those rules are written against --
+plus, at the bottom, the other vendors' vocabularies and what they mean.
 """
 
 from typing import Optional
@@ -121,3 +122,49 @@ def map_prompt_name(task: str, prompts: Optional[dict]) -> Optional[str]:
             None,
         )
     return next((k for k in ("document", "query") if k in prompts), None)
+
+
+# --- other vendors' vocabularies -------------------------------------------
+#
+# Each entry is ``(preferred task families, retrieval role)``. Neither half is
+# a task on its own: ``engine.fit_task`` turns the pair into a task the LOADED
+# model actually has, most specific family first.
+#
+# It has to work that way because these fields are closed single-choice lists.
+# A Cohere client cannot say ``nl2code`` -- Cohere has no such value -- so a
+# code-embeddings image reached through Cohere's schema would refuse every
+# request its caller is capable of sending. What the caller *can* express is
+# the role, and that is what survives the translation.
+#
+# An empty family tuple with no role means the vendor spelled out "unspecified"
+# rather than omitting the field, which is the model's own default.
+
+QUERY = "query"
+PASSAGE = "passage"
+
+# Cohere `input_type` (all five published values) and Voyage `input_type`
+# (query / document). Jina's own query / document spellings ride along.
+INPUT_TYPE_ROLES = {
+    "query": (("retrieval",), QUERY),
+    "search_query": (("retrieval",), QUERY),
+    "document": (("retrieval",), PASSAGE),
+    "search_document": (("retrieval",), PASSAGE),
+    "classification": (("classification",), None),
+    "clustering": (("clustering",), None),
+    # Cohere pairs this with `images`, so the modality already says what the
+    # input is and there is no retrieval role to carry.
+    "image": ((), None),
+}
+
+# Gemini `taskType`, all nine published values.
+TASK_TYPE_ROLES = {
+    "TASK_TYPE_UNSPECIFIED": ((), None),
+    "RETRIEVAL_QUERY": (("retrieval",), QUERY),
+    "RETRIEVAL_DOCUMENT": (("retrieval",), PASSAGE),
+    "SEMANTIC_SIMILARITY": (("text-matching",), None),
+    "CLASSIFICATION": (("classification",), None),
+    "CLUSTERING": (("clustering",), None),
+    "QUESTION_ANSWERING": (("qa", "retrieval"), QUERY),
+    "FACT_VERIFICATION": (("retrieval",), QUERY),
+    "CODE_RETRIEVAL_QUERY": (("nl2code", "code", "retrieval"), QUERY),
+}

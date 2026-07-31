@@ -19,23 +19,13 @@ from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict
 
 import engine
+import tasks
 from errors import BadRequest, JinaError, request_id
 from media import _parse_content_part as parse_content_part
 
 from .jina import reject_foreign_model
 
 router = APIRouter(tags=["Google Gemini"])
-
-TASK_TYPES = {
-    "RETRIEVAL_QUERY": "retrieval.query",
-    "RETRIEVAL_DOCUMENT": "retrieval.passage",
-    "SEMANTIC_SIMILARITY": "text-matching",
-    "CLASSIFICATION": "classification",
-    "CLUSTERING": "clustering",
-    "QUESTION_ANSWERING": "retrieval.query",
-    "FACT_VERIFICATION": "retrieval.query",
-    "CODE_RETRIEVAL_QUERY": "retrieval.query",
-}
 
 # Canonical gRPC status names, keyed by HTTP status (google.aip.dev/193).
 STATUS_NAMES = {
@@ -142,25 +132,30 @@ def batch_embed_contents(model_id: str, request: BatchEmbedRequest):
     }
 
 
-def _task_of(config: dict) -> str:
-    """Gemini's `taskType`, or a refusal.
+def _task_of(config: dict) -> Optional[str]:
+    """Gemini's `taskType`, fitted to this model, or a refusal.
 
-    ``TASK_TYPES.get(value, "retrieval")`` answered an unrecognised task type
-    with retrieval vectors and a 200. The name space is Gemini's, so an
-    unknown one is refused here rather than passed to a model that has never
-    heard of ``RETRIEVAL_QUERY`` either way.
+    Substituting a default for an unrecognised task type answered a typo with
+    retrieval vectors and a 200; refusing everything outside our own map then
+    rejected ``TASK_TYPE_UNSPECIFIED``, which is Gemini's own first enum value.
+    Only what Gemini itself refuses is refused here.
+
+    An absent `taskType` no longer forces ``retrieval`` either. Gemini treats
+    it as unspecified, and unspecified is each model's own default -- the same
+    answer `/v1/embeddings` gives when `task` is omitted, which is the point of
+    serving both schemas from one core.
     """
     task_type = config.get("taskType")
     if not task_type:
-        return "retrieval"
-    task = TASK_TYPES.get(task_type)
-    if task is None:
+        return None
+    roles = tasks.TASK_TYPE_ROLES.get(task_type)
+    if roles is None:
         raise BadRequest(
             f"Unknown taskType '{task_type}'. Valid values: "
-            f"{', '.join(sorted(TASK_TYPES))}.",
+            f"{', '.join(sorted(tasks.TASK_TYPE_ROLES))}.",
             field="taskType",
         )
-    return task
+    return engine.fit_task(*roles)
 
 
 def _config_of(sub: dict) -> dict:
