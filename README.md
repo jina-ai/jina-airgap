@@ -170,6 +170,7 @@ curl -s http://localhost:8080/health   # shows license status; /health always op
 
 - **Zero-dep CLI**: `jina-on-prem.py` uses Python stdlib only
 - **Weights baked in**: multi-stage Docker build downloads weights at bundle time; `HF_HUB_OFFLINE=1` + `TRANSFORMERS_OFFLINE=1` enforced at runtime
+- **No connection of its own**: the server opens nothing outbound on its own initiative. It will fetch an `http(s)` image or video URL when a *request* contains one - reachability is your network's decision, and `--network none` still serves every model. Only `http`/`https` and inline `data:` URLs are read, capped at 10 MB with an 8s budget
 - **Split Dockerfiles**: `Dockerfile.gpu` (pytorch base, CUDA, FP16) and `Dockerfile.cpu` (python:3.11-slim)
 - **Per-model pinned deps**: `catalog.json` `deps` field drives exact versions per model
 - **Multi-schema API**: OpenAI, Voyage AI, Cohere, Gemini - all active simultaneously
