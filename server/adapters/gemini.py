@@ -86,6 +86,7 @@ def embed_content(model_id: str, request: EmbedContentRequest):
         [item],
         task=_task_of(config),
         dimensions=config.get("outputDimensionality"),
+        truncate=_truncate_of(config),
     )
     return {
         "embedding": {"values": vectors[0].tolist()},
@@ -111,16 +112,23 @@ def batch_embed_contents(model_id: str, request: BatchEmbedRequest):
     groups: dict = {}
     for position, sub in enumerate(request.requests):
         config = _config_of(sub)
-        key = (_task_of(config), config.get("outputDimensionality"))
+        key = (
+            _task_of(config),
+            config.get("outputDimensionality"),
+            _truncate_of(config),
+        )
         groups.setdefault(key, []).append(
             (position, content_item(sub.get("content", {})))
         )
 
     ordered: list = [None] * len(request.requests)
     n_tokens = 0
-    for (task, dimensions), entries in groups.items():
+    for (task, dimensions, truncate), entries in groups.items():
         vectors, tokens, _ = engine.embed(
-            [item for _, item in entries], task=task, dimensions=dimensions
+            [item for _, item in entries],
+            task=task,
+            dimensions=dimensions,
+            truncate=truncate,
         )
         n_tokens += tokens
         for (position, _), vector in zip(entries, vectors):
@@ -156,6 +164,17 @@ def _task_of(config: dict) -> Optional[str]:
             field="taskType",
         )
     return engine.fit_task(*roles)
+
+
+def _truncate_of(config: dict) -> bool:
+    """`embedContentConfig.autoTruncate`, which was read and then dropped.
+
+    Only an explicit false changes anything: absent means the caller expressed
+    no opinion, and this route has always trimmed in that case. False is a
+    request to be told, and answering it with a quietly shortened embedding is
+    the failure it exists to prevent.
+    """
+    return config.get("autoTruncate") is not False
 
 
 def _config_of(sub: dict) -> dict:

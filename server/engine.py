@@ -499,6 +499,7 @@ def rerank(
     top_n: Optional[int] = None,
     return_documents: bool = True,
     max_doc_length: Optional[int] = None,
+    truncate: bool = True,
 ) -> tuple[list[dict], int, float]:
     """Score ``documents`` against ``query``.
 
@@ -507,11 +508,17 @@ def rerank(
     text: truncation is a scoring directive, and round-tripping a detokenised
     fragment back to the client would corrupt it -- lower-cased, respaced, or
     with CJK split at subword boundaries.
+
+    ``truncate`` is Voyage's ``truncation``, and false means raise rather than
+    trim. Silently scoring the first N tokens of a document the caller believes
+    was read in full is exactly what they turned it off to avoid.
     """
     family = _require_rerank()
     texts = [document_text(document) for document in documents]
     if max_doc_length:
         texts = [_clip(text, max_doc_length) for text in texts]
+    if not truncate:
+        _refuse_over_length(token_lengths([query] + texts))
     n_tokens = count_tokens([query] + texts, cap=SPEC.context)
 
     start = time.perf_counter()

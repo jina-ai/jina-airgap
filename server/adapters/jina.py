@@ -7,12 +7,19 @@ rewrite is measured against.
 The request deliberately accepts each provider's field names as aliases,
 because the public API does exactly the same thing (`AliasChoices` throughout
 `sefo-gcp` `models/embedding.py` and `models/reranking.py`): OpenAI's
-`encoding_format`, Voyage's `output_dtype` / `truncation` / `top_k`, Gemini's
-`task_type` / `output_dimensionality`, Cohere's `texts` / `max_tokens_per_doc`.
-That is a field union, not an adapter. Anything a provider has that Jina does
-not -- OpenAI's `user`, Cohere's `priority` -- is accepted and ignored by
+`encoding_format`, Voyage's `truncation` / `top_k`, Gemini's `task_type` /
+`output_dimensionality`, Cohere's `texts` / `max_tokens_per_doc`. That is a
+field union, not an adapter. Anything a provider has that Jina does not --
+OpenAI's `user`, Cohere's `priority` -- is accepted and ignored by
 `extra="ignore"`; anything that changes semantics lives in that provider's
 adapter.
+
+An alias is only right where the two fields mean the same thing. Voyage's
+`output_dtype` is not aliased onto `embedding_type` for that reason, and where
+the same field carries different *defaults* -- Voyage truncates by default,
+Jina and OpenAI refuse -- the divergence is documented rather than papered
+over, because `/v1/embeddings` is all three vendors' published path and
+nothing on the wire says which client sent the request.
 """
 
 from typing import Literal, Optional, Union
@@ -145,6 +152,12 @@ class RerankRequest(BaseModel):
         le=8192,
         validation_alias=AliasChoices("max_doc_length", "max_tokens_per_doc"),
     )
+    # Voyage's rerank has this and means it: false is "raise rather than trim".
+    # Default true because that is both Voyage's default and what this route
+    # already did.
+    truncate: bool = Field(
+        default=True, validation_alias=AliasChoices("truncate", "truncation")
+    )
 
 
 @router.post("/v1/embeddings")
@@ -180,6 +193,7 @@ def rerank(request: RerankRequest):
         top_n=request.top_n,
         return_documents=request.return_documents,
         max_doc_length=request.max_doc_length,
+        truncate=request.truncate,
     )
     return serialize.rerank_response(
         settings.short_model_id,
