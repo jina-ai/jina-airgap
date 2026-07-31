@@ -172,7 +172,8 @@ check(
 
 small = np.array([0.25, -0.5, 1.0], dtype=np.float32)
 decoded = np.frombuffer(
-    base64.b64decode(serialize.encode_vector(small, "base64")), dtype="<f4"
+    base64.b64decode(serialize.encode_vector(small, "float", as_base64=True)),
+    dtype="<f4",
 )
 check(
     "base64 is little-endian float32, round-trips exactly",
@@ -182,6 +183,32 @@ check(
 check(
     "float returns a plain list",
     serialize.encode_vector(small, "float") == small.tolist(),
+)
+
+# The dtype and the wire form are independent, which only Voyage's schema says
+# out loud: `{"output_dtype": "binary", "encoding_format": "base64"}` is packed
+# bits written as base64, not base64 floats.
+check(
+    "int8 quantises to the signed byte range",
+    serialize.encode_vector(small, "int8") == [32.0, -64.0, 127.0],
+    str(serialize.encode_vector(small, "int8")),
+)
+check(
+    "uint8 quantises to the unsigned byte range",
+    serialize.encode_vector(small, "uint8") == [159.0, 64.0, 255.0],
+    str(serialize.encode_vector(small, "uint8")),
+)
+check(
+    "base64 of a binary vector carries the packed bytes, not floats",
+    np.frombuffer(
+        base64.b64decode(serialize.encode_vector(vector, "binary", as_base64=True)),
+        dtype="int8",
+    ).tolist()
+    == [int(v) for v in serialize.encode_vector(vector, "binary")],
+)
+check(
+    "an unknown dtype raises rather than falling through to bits",
+    isinstance(_raises(lambda: serialize.encode_vector(small, "base64")), ValueError),
 )
 
 # --- error bodies ----------------------------------------------------------

@@ -73,9 +73,15 @@ class EmbeddingsRequest(BaseModel):
             "embedding_type",
             "encoding_type",
             "encoding_format",
-            "output_dtype",
             "embedding_types",
         ),
+    )
+    # Voyage's, and deliberately not an alias of the field above: theirs are
+    # two orthogonal choices -- which numbers, and whether to base64 them --
+    # where Jina's one field encodes four of the pairs. Aliased together, the
+    # first one pydantic matched silently discarded the other.
+    output_dtype: Optional[Literal["float", "int8", "uint8", "binary", "ubinary"]] = (
+        None
     )
     late_chunking: bool = False
     return_multivector: bool = False
@@ -85,13 +91,18 @@ class EmbeddingsRequest(BaseModel):
     @field_validator("embedding_type", mode="before")
     @classmethod
     def _single_value(cls, value):
-        # The public API types this as `Union[Literal, List[Literal]]` but
-        # returns HTTP 500 on the list form. Reject it at validation rather
-        # than reproduce the crash.
+        # Cohere's spelling of this field is a list, because Cohere returns
+        # every type asked for at once. This envelope has one `embedding` key
+        # per item and nowhere to put a second encoding, so a one-element list
+        # is unwrapped and a longer one is sent to the route that can answer
+        # it. (The public API types this as `Union[Literal, List[Literal]]`
+        # and returns HTTP 500 on the list form; that is not worth copying.)
         if isinstance(value, list):
+            if len(value) == 1:
+                return value[0]
             raise ValueError(
-                "embedding_type must be a single value, not a list. Accepted: "
-                + ", ".join(serialize.EMBEDDING_TYPES)
+                "embedding_type takes one value here; POST /v2/embed returns "
+                "several at once. Accepted: " + ", ".join(serialize.NATIVE_TYPES)
             )
         return value if value is not None else "float"
 
@@ -297,13 +308,18 @@ def inference_kwargs(family, request: EmbeddingsRequest) -> dict:
 
 
 def embedding_data(vectors, request: EmbeddingsRequest) -> list:
+    dtype, as_base64 = serialize.NATIVE_TYPES[request.embedding_type]
+    if request.output_dtype:
+        # More specific than the shorthand: it names the numbers outright,
+        # leaving the shorthand to say only whether they are base64.
+        dtype = request.output_dtype
     if request.return_multivector:
         return [
-            serialize.multivector_item(index, matrix, request.embedding_type)
+            serialize.multivector_item(index, matrix, dtype, as_base64=as_base64)
             for index, matrix in enumerate(vectors)
         ]
     return [
-        serialize.embedding_item(index, vector, request.embedding_type)
+        serialize.embedding_item(index, vector, dtype, as_base64=as_base64)
         for index, vector in enumerate(vectors)
     ]
 

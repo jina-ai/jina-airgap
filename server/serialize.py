@@ -20,35 +20,80 @@ from typing import Any, Optional, Union
 
 import numpy as np
 
-# Jina's own value set. `encoding_format` (OpenAI: float|base64) and
-# `output_dtype` (Voyage: adds int8|uint8) alias onto this field, so a Voyage
-# client asking for int8 gets a 422 naming these four rather than a silent
-# float array. Widening the set here would drift the native contract away from
-# the public API, which is the one thing the golden gate protects.
-EMBEDDING_TYPES = ("float", "base64", "binary", "ubinary")
+# What an embedding can be made of, and how it can be written down. These are
+# two independent choices, and only Voyage's schema says so out loud:
+# `output_dtype` picks the numbers, `encoding_format` picks the wire form. Jina
+# and OpenAI have one field for both, whose four values are four of the pairs.
+#
+# Collapsing them into one field is what made `{"output_dtype": "binary",
+# "encoding_format": "base64"}` -- a legal Voyage request meaning "packed bits,
+# base64" -- return base64 floats, because whichever alias pydantic matched
+# first won and the other was dropped.
+DTYPES = ("float", "int8", "uint8", "binary", "ubinary")
+
+# Jina's own `embedding_type`, as the (dtype, base64) pair each value means.
+NATIVE_TYPES = {
+    "float": ("float", False),
+    "base64": ("float", True),
+    "binary": ("binary", False),
+    "ubinary": ("ubinary", False),
+}
+
+# Buffer type for the base64 form. Voyage documents base64 as "a Base64-encoded
+# NumPy array ... dtype follows output_dtype", so the bytes have to be the
+# natural width, not float32 of an integer value.
+_BUFFERS = {
+    "float": "<f4",
+    "int8": "int8",
+    "binary": "int8",
+    "uint8": "uint8",
+    "ubinary": "uint8",
+}
 
 
-def encode_vector(vector: np.ndarray, embedding_type: str) -> Union[list, str]:
-    """Render one embedding in the requested wire encoding."""
-    if embedding_type == "float":
-        return vector.tolist()
-    if embedding_type == "base64":
-        return base64.b64encode(vector.astype("<f4").tobytes()).decode("ascii")
-    # binary / ubinary: one sign bit per dimension, packed MSB-first.
-    #
-    # `ubinary` is the packed byte as-is. `binary` is that byte minus 128 --
-    # offset binary, NOT a two's-complement reinterpretation. Measured against
-    # api.jina.ai on jina-embeddings-v2-base-en with identical input: prod
-    # returns ubinary [50, 193, 128, 255, ...] and binary [-78, 65, 0, 127,
-    # ...], which is exactly ubinary-128 and not the int8 view (which would
-    # give [50, -63, -128, -1, ...]).
-    #
-    # Both come back as JSON floats in range rather than integers, so the cast
-    # is to float32 and not to int.
-    packed = np.packbits(np.asarray(vector) > 0).astype(np.float32)
-    if embedding_type == "binary":
-        packed -= 128.0
-    return packed.tolist()
+def quantize(vector: np.ndarray, dtype: str) -> np.ndarray:
+    """The numbers, before any decision about how to write them down.
+
+    int8 / uint8 are the symmetric mapping for unit-norm vectors. Cohere and
+    Voyage both publish the value set but neither publishes its quantiser, so
+    these are correctly *ranged* and not bit-comparable with their output.
+
+    binary / ubinary are one sign bit per dimension, packed MSB-first.
+    `ubinary` is the packed byte as-is; `binary` is that byte minus 128 --
+    offset binary, NOT a two's-complement reinterpretation. Measured against
+    api.jina.ai on jina-embeddings-v2-base-en with identical input: prod
+    returns ubinary [50, 193, 128, 255, ...] and binary [-78, 65, 0, 127, ...],
+    which is exactly ubinary-128 and not the int8 view (which would give
+    [50, -63, -128, -1, ...]).
+
+    Everything stays float32 so the JSON form is floats in range rather than
+    integers, which is what prod emits.
+    """
+    values = np.asarray(vector)
+    if dtype == "float":
+        return values
+    if dtype == "int8":
+        return np.clip(np.rint(values * 127), -128, 127)
+    if dtype == "uint8":
+        return np.clip(np.rint((values + 1) * 127.5), 0, 255)
+    if dtype in ("binary", "ubinary"):
+        packed = np.packbits(values > 0).astype(np.float32)
+        return packed - 128.0 if dtype == "binary" else packed
+    # Not defensive: `base64` used to be a member of this value set, and
+    # falling through to packbits would answer it with bits and a 200.
+    raise ValueError(f"Unknown dtype {dtype!r}; expected one of {', '.join(DTYPES)}")
+
+
+def encode_vector(
+    vector: np.ndarray, dtype: str = "float", *, as_base64: bool = False
+) -> Union[list, str]:
+    """Render one embedding: the numbers, then the wire form."""
+    values = quantize(vector, dtype)
+    if as_base64:
+        return base64.b64encode(values.astype(_BUFFERS[dtype]).tobytes()).decode(
+            "ascii"
+        )
+    return values.tolist()
 
 
 def usage(total_tokens: int, *, prompt_tokens: bool) -> dict:
@@ -72,25 +117,31 @@ def usage(total_tokens: int, *, prompt_tokens: bool) -> dict:
     return block
 
 
-def embedding_item(index: int, vector: np.ndarray, embedding_type: str) -> dict:
+def embedding_item(
+    index: int, vector: np.ndarray, dtype: str, *, as_base64: bool = False
+) -> dict:
     return {
         "object": "embedding",
         "index": index,
-        "embedding": encode_vector(vector, embedding_type),
+        "embedding": encode_vector(vector, dtype, as_base64=as_base64),
     }
 
 
 def multivector_item(
     index: int,
     vectors: np.ndarray,
-    embedding_type: str,
+    dtype: str,
     tokens: Optional[list] = None,
+    *,
+    as_base64: bool = False,
 ) -> dict:
     """Per-token embeddings: the key turns plural and so does `object`."""
     item: dict[str, Any] = {
         "object": "embeddings",
         "index": index,
-        "embeddings": [encode_vector(vector, embedding_type) for vector in vectors],
+        "embeddings": [
+            encode_vector(vector, dtype, as_base64=as_base64) for vector in vectors
+        ],
     }
     if tokens is not None:
         item["tokenized_input"] = tokens

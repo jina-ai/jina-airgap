@@ -21,14 +21,13 @@ measured against api.voyageai.com, which is exactly what this container
 already returns.
 """
 
-import base64
 from typing import Optional
 
-import numpy as np
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict
 
 import engine
+import serialize
 from config import settings
 from errors import JinaError
 from media import fuse_content
@@ -61,19 +60,17 @@ def multimodal_embeddings(request: MultimodalRequest):
         task=input_type_task(request.input_type),
         truncate=request.truncation,
     )
+    as_base64 = request.output_encoding == "base64"
     return {
-        "embeddings": [encode(vector, request.output_encoding) for vector in vectors],
+        "embeddings": [
+            serialize.encode_vector(vector, "float", as_base64=as_base64)
+            for vector in vectors
+        ],
         "text_tokens": n_tokens,
         "image_pixels": 0,  # not tracked: pixel counts need the decoded frames
         "total_tokens": n_tokens,
         "model": settings.short_model_id,
     }
-
-
-def encode(vector: np.ndarray, output_encoding: Optional[str]):
-    if output_encoding == "base64":
-        return base64.b64encode(vector.astype("<f4").tobytes()).decode("ascii")
-    return vector.tolist()
 
 
 def error(exc: JinaError) -> dict:

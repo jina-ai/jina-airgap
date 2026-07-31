@@ -58,9 +58,7 @@ class RerankRequest(BaseModel):
     query: str
     documents: list[str] = Field(min_length=1)
     top_n: Optional[int] = Field(default=None, ge=1)
-    max_tokens_per_doc: int = Field(
-        default=DEFAULT_MAX_TOKENS_PER_DOC, ge=1, le=8192
-    )
+    max_tokens_per_doc: int = Field(default=DEFAULT_MAX_TOKENS_PER_DOC, ge=1, le=8192)
     priority: Optional[int] = None
 
 
@@ -145,16 +143,10 @@ def rerank(request: RerankRequest):
 
 
 def encode(vector: np.ndarray, kind: str):
-    """Cohere's `embedding_types` covers Jina's four plus int8 / uint8.
-
-    The int8 / uint8 mapping is the symmetric one for unit-norm vectors --
-    Cohere does not publish its quantiser, so these are correctly *ranged* but
-    not bit-comparable with Cohere's own output.
-    """
-    if kind == "int8":
-        return np.clip(np.rint(np.asarray(vector) * 127), -128, 127).tolist()
-    if kind == "uint8":
-        return np.clip(np.rint((np.asarray(vector) + 1) * 127.5), 0, 255).tolist()
+    """Cohere's `embedding_types` is Jina's four plus int8 / uint8, and its
+    `base64` is float bytes rather than a sixth set of numbers."""
+    if kind == "base64":
+        return serialize.encode_vector(vector, "float", as_base64=True)
     return serialize.encode_vector(vector, kind)
 
 
