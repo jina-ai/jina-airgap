@@ -18,7 +18,12 @@ import telemetry
 from batching import Batcher, autotune_budget
 from catalog import spec_for
 from config import settings
-from errors import BadRequest, ModelNotLoaded, PayloadTooLarge
+from errors import (
+    BadRequest,
+    ModelNotLoaded,
+    PayloadTooLarge,
+    UnprocessableEntity,
+)
 from families import Family, family_for
 from families.reranking import document_text
 
@@ -212,12 +217,83 @@ def count_tokens(texts: list[str], cap: Optional[int] = None) -> int:
     return sum(token_lengths(texts, cap))
 
 
+def _check_task(family: Family, task: Optional[str]) -> None:
+    """Reject a task the loaded model does not know, so a typo cannot silently
+    select a different LoRA adapter.
+
+    An empty ``known_tasks`` means the model exposes no vocabulary to check
+    against -- v4 and both v5 families -- and the task is passed through for
+    the model's own validator to refuse.
+    """
+    if not task:
+        return
+    known = family.known_tasks
+    if not known:
+        return
+    if task.partition(".")[0] in known or task in (family.prompts or ()):
+        return
+    raise BadRequest(
+        f"Unknown task '{task}' for {settings.short_model_id}. "
+        f"This model accepts: {', '.join(sorted(known))} "
+        f"(optionally suffixed .query or .passage).",
+        field="task",
+    )
+
+
+def _check_dimensions(dimensions: Optional[int]) -> None:
+    """The public API caps `dimensions` at the model's own output dimension and
+    422s above it; without the check a too-large value silently no-ops."""
+    limit = SPEC.output_dim
+    if dimensions and limit and dimensions > limit:
+        raise UnprocessableEntity(
+            f"Input should be less than or equal to {limit}",
+            field="body -> dimensions",
+            code="less_than_equal",
+        )
+
+
+def _check_extras(family: Family, extra: Optional[dict]) -> Optional[dict]:
+    """sentence-transformers drops undeclared encode kwargs silently, so a
+    `late_chunking` request against a model without it would return ordinary
+    embeddings and look like a success."""
+    if not extra:
+        return extra
+    accepted = family.encode_kwargs
+    for name in extra:
+        if name not in accepted:
+            raise BadRequest(
+                f"'{name}' is not supported by {settings.short_model_id}.",
+                field=name,
+            )
+    return extra
+
+
+def _refuse_over_length(lengths: list) -> None:
+    """`truncate=false` means "error rather than silently shorten". Measured on
+    api.jina.ai: over-length input returns HTTP 400 `INPUT_TOKEN_LIMIT_EXCEEDED`,
+    and only `truncate=true` succeeds. Left to sentence-transformers the input
+    would be clipped with nothing on the wire to say so, which changes the
+    embedding invisibly."""
+    limit = SPEC.context
+    if not limit:
+        return
+    if any(length > limit for length in lengths):
+        raise BadRequest(
+            f"Input text exceeds the model's maximum of {limit} tokens. "
+            f"Use 'truncate: true' to automatically truncate, or split "
+            f"into smaller chunks.",
+            field="input",
+            code="INPUT_TOKEN_LIMIT_EXCEEDED",
+        )
+
+
 def embed(
     items: list,
     task: Optional[str] = None,
     dimensions: Optional[int] = None,
     normalized: bool = True,
     extra: Optional[dict] = None,
+    truncate: bool = True,
 ) -> tuple[np.ndarray, int, float]:
     """Embed text, media, and fused multimodal blocks in one call.
 
@@ -226,16 +302,34 @@ def embed(
 
     ``extra`` carries the native parameters that change the forward pass
     (``late_chunking``, ``return_multivector``, ``return_tokenized_input``).
-    The route has already checked them against ``family.encode_kwargs``, so
-    anything arriving here is a kwarg the model genuinely consumes.
+
+    The contract checks live here rather than in an adapter. They used to sit
+    in ``adapters/jina.py``, which made the Jina route the only one that
+    enforced them: the same over-limit ``dimensions`` was a 422 through
+    ``/v1/embeddings`` and a silent full-width 200 through Cohere's, because
+    ``_truncate`` no-ops when the request is wider than the model. An adapter
+    can only be trusted to translate its own dialect; what a request is allowed
+    to *say* is the model's business, and this is where the model is.
     """
     family = _require_embed()
+    _check_task(family, task)
+    _check_dimensions(dimensions)
+    extra = _check_extras(family, extra)
     task, prompt_name = family.resolve_task(task)
     inputs, texts, per_row = _split_inputs(items)
-    # One tokenizer pass, used twice: for the usage figure and for the packing
-    # weights. It runs on a threadpool thread, so a second pass over the same
-    # text competes with the model worker for the CPU it needs to feed the GPU.
-    lengths = token_lengths(texts, cap=SPEC.context) if texts else []
+    # One tokenizer pass, used three times: to refuse over-length input, for
+    # the usage figure, and for the packing weights. It runs on a threadpool
+    # thread, so a second pass over the same text competes with the model
+    # worker for the CPU it needs to feed the GPU -- which is what the old
+    # per-item `count_tokens` call in the route was doing.
+    raw_lengths = token_lengths(texts) if texts else []
+    if not truncate:
+        _refuse_over_length(raw_lengths)
+    lengths = (
+        [min(length, SPEC.context) for length in raw_lengths]
+        if SPEC.context
+        else raw_lengths
+    )
     n_tokens = sum(lengths) if texts else len(items)
 
     start = time.perf_counter()

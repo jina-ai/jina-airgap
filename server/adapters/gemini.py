@@ -19,7 +19,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict
 
 import engine
-from errors import JinaError, request_id
+from errors import BadRequest, JinaError, request_id
 from media import _parse_content_part as parse_content_part
 
 from .jina import reject_foreign_model
@@ -94,7 +94,7 @@ def embed_content(model_id: str, request: EmbedContentRequest):
 
     vectors, n_tokens, _ = engine.embed(
         [item],
-        task=TASK_TYPES.get(config.get("taskType") or "", "retrieval"),
+        task=_task_of(config),
         dimensions=config.get("outputDimensionality"),
     )
     return {
@@ -111,19 +111,56 @@ def batch_embed_contents(model_id: str, request: BatchEmbedRequest):
     for sub in request.requests:
         reject_foreign_model(sub.get("model"))
 
-    items, dimensions, task_type = [], None, ""
-    for sub in request.requests:
-        dimensions = dimensions or _config_of(sub).get("outputDimensionality")
-        task_type = task_type or _config_of(sub).get("taskType") or ""
-        items.append(content_item(sub.get("content", {})))
+    # `taskType` and `outputDimensionality` are per sub-request, which is the
+    # only reason the field lives there rather than on the batch. Collapsing
+    # them onto the first non-empty value -- what this did -- encoded an
+    # index-building batch of one query and one passage entirely as queries,
+    # and returned 200. Sub-requests are grouped by the pair instead, so each
+    # row gets the encoding it asked for; rows sharing a pair still share one
+    # forward, so the common case costs no extra call.
+    groups: dict = {}
+    for position, sub in enumerate(request.requests):
+        config = _config_of(sub)
+        key = (_task_of(config), config.get("outputDimensionality"))
+        groups.setdefault(key, []).append(
+            (position, content_item(sub.get("content", {})))
+        )
 
-    vectors, n_tokens, _ = engine.embed(
-        items, task=TASK_TYPES.get(task_type, "retrieval"), dimensions=dimensions
-    )
+    ordered: list = [None] * len(request.requests)
+    n_tokens = 0
+    for (task, dimensions), entries in groups.items():
+        vectors, tokens, _ = engine.embed(
+            [item for _, item in entries], task=task, dimensions=dimensions
+        )
+        n_tokens += tokens
+        for (position, _), vector in zip(entries, vectors):
+            ordered[position] = vector
+
     return {
-        "embeddings": [{"values": vector.tolist()} for vector in vectors],
+        "embeddings": [{"values": vector.tolist()} for vector in ordered],
         "usageMetadata": {"promptTokenCount": n_tokens, "promptTokenDetails": []},
     }
+
+
+def _task_of(config: dict) -> str:
+    """Gemini's `taskType`, or a refusal.
+
+    ``TASK_TYPES.get(value, "retrieval")`` answered an unrecognised task type
+    with retrieval vectors and a 200. The name space is Gemini's, so an
+    unknown one is refused here rather than passed to a model that has never
+    heard of ``RETRIEVAL_QUERY`` either way.
+    """
+    task_type = config.get("taskType")
+    if not task_type:
+        return "retrieval"
+    task = TASK_TYPES.get(task_type)
+    if task is None:
+        raise BadRequest(
+            f"Unknown taskType '{task_type}'. Valid values: "
+            f"{', '.join(sorted(TASK_TYPES))}.",
+            field="taskType",
+        )
+    return task
 
 
 def _config_of(sub: dict) -> dict:

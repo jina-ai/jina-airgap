@@ -33,7 +33,7 @@ from config import settings
 from errors import JinaError
 from media import fuse_content
 
-from .jina import INPUT_TYPE_TASKS, reject_foreign_model
+from .jina import input_type_task, reject_foreign_model
 
 router = APIRouter(tags=["Voyage AI"])
 
@@ -57,7 +57,9 @@ def multimodal_embeddings(request: MultimodalRequest):
 
     items = [fuse_content(item.get("content", [])) for item in request.inputs]
     vectors, n_tokens, _ = engine.embed(
-        items, task=INPUT_TYPE_TASKS.get(request.input_type or "", "retrieval")
+        items,
+        task=input_type_task(request.input_type),
+        truncate=request.truncation,
     )
     return {
         "embeddings": [encode(vector, request.output_encoding) for vector in vectors],

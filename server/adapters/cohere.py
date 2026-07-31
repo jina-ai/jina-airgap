@@ -22,7 +22,7 @@ from errors import BadRequest, JinaError, request_id
 from media import _bytes_to_st_input as bytes_to_st_input, _decode_b64 as decode_b64
 from media import fuse_content
 
-from .jina import INPUT_TYPE_TASKS, reject_foreign_model
+from .jina import input_type_task, reject_foreign_model
 
 router = APIRouter(tags=["Cohere"])
 
@@ -58,14 +58,16 @@ class RerankRequest(BaseModel):
     query: str
     documents: list[str] = Field(min_length=1)
     top_n: Optional[int] = Field(default=None, ge=1)
-    max_tokens_per_doc: int = DEFAULT_MAX_TOKENS_PER_DOC
+    max_tokens_per_doc: int = Field(
+        default=DEFAULT_MAX_TOKENS_PER_DOC, ge=1, le=8192
+    )
     priority: Optional[int] = None
 
 
 @router.post("/v2/embed")
 def embed(request: EmbedRequest):
     reject_foreign_model(request.model)
-    task = INPUT_TYPE_TASKS.get(request.input_type, "retrieval")
+    task = input_type_task(request.input_type)
 
     if request.inputs is not None:
         engine.require_multimodal()

@@ -33,7 +33,6 @@ from config import settings
 from errors import (
     BadRequest,
     JinaError,
-    UnprocessableEntity,
     jina_error_body,
     jina_validation_body,
 )
@@ -154,18 +153,13 @@ def create_embeddings(request: EmbeddingsRequest):
     requests, which differ from Jina's only in field naming."""
     reject_foreign_model(request.model)
     family = engine.embedding_family()
-    check_task(family, request.task)
-    check_dimensions(request.dimensions)
-
-    items = embedding_items(request.input)
-    enforce_truncation(items, request.truncate)
-
     vectors, n_tokens, _ = engine.embed(
-        items,
+        embedding_items(request.input),
         task=resolve_task(request),
         dimensions=request.dimensions,
         normalized=request.normalized,
         extra=inference_kwargs(family, request),
+        truncate=request.truncate,
     )
     return serialize.embeddings_response(
         settings.short_model_id,
@@ -222,28 +216,30 @@ def reject_foreign_model(requested: Optional[str]) -> None:
     )
 
 
-def check_task(family, task: Optional[str]) -> None:
-    """Reject a task the loaded model does not know, so a typo cannot silently
-    select a different LoRA adapter."""
-    if not task:
-        return
-    known = family.known_tasks
-    if not known:
-        return
-    if task.partition(".")[0] in known or task in (family.prompts or ()):
-        return
-    raise BadRequest(
-        f"Unknown task '{task}' for {settings.short_model_id}. "
-        f"This model accepts: {', '.join(sorted(known))} "
-        f"(optionally suffixed .query or .passage).",
-        field="task",
-    )
-
-
 def resolve_task(request: EmbeddingsRequest) -> Optional[str]:
-    if request.input_type:
-        return INPUT_TYPE_TASKS.get(request.input_type, "retrieval")
-    return request.task
+    return input_type_task(request.input_type) or request.task
+
+
+def input_type_task(input_type: Optional[str]) -> Optional[str]:
+    """Translate a provider's ``input_type`` to a Jina task, or refuse it.
+
+    Shared by every schema that has this field. The old
+    ``.get(value, "retrieval")`` turned a typo into a valid task, so a caller
+    asking for ``search_documnt`` was served query vectors and a 200. Which
+    names are valid is the schema layer's business -- the model has never
+    heard of ``search_document`` -- so this refuses here and names the
+    vocabulary the caller was using.
+    """
+    if not input_type:
+        return None
+    task = INPUT_TYPE_TASKS.get(input_type)
+    if task is None:
+        raise BadRequest(
+            f"Unknown input_type '{input_type}'. Valid values: "
+            f"{', '.join(sorted(INPUT_TYPE_TASKS))}.",
+            field="input_type",
+        )
+    return task
 
 
 def embedding_items(raw: Union[str, dict, list]) -> list:
@@ -263,43 +259,6 @@ def embedding_items(raw: Union[str, dict, list]) -> list:
     if any(not isinstance(part, str) for parts in parsed for part in parts):
         engine.require_multimodal()
     return [parts[0] if len(parts) == 1 else parts for parts in parsed]
-
-
-def check_dimensions(dimensions: Optional[int]) -> None:
-    """The public API caps `dimensions` at the model's own output dimension and
-    422s above it; without the check a too-large value silently no-ops."""
-    limit = engine.SPEC.output_dim
-    if dimensions and limit and dimensions > limit:
-        raise UnprocessableEntity(
-            f"Input should be less than or equal to {limit}",
-            field="body -> dimensions",
-            code="less_than_equal",
-        )
-
-
-def enforce_truncation(items: list, truncate: bool) -> None:
-    """`truncate=false` (the default) means "error rather than silently
-    shorten". Measured on api.jina.ai: over-length input returns HTTP 400
-    `INPUT_TOKEN_LIMIT_EXCEEDED`, and only `truncate=true` succeeds. Left to
-    sentence-transformers the input would be clipped with nothing on the wire
-    to say so, which changes the embedding invisibly."""
-    if truncate:
-        return
-    limit = engine.SPEC.context
-    if not limit:
-        return
-    for item in items:
-        if not isinstance(item, str):
-            continue
-        tokens = engine.count_tokens([item])
-        if tokens > limit:
-            raise BadRequest(
-                f"Input text exceeds the model's maximum of {limit} tokens. "
-                f"Use 'truncate: true' to automatically truncate, or split "
-                f"into smaller chunks.",
-                field="input",
-                code="INPUT_TOKEN_LIMIT_EXCEEDED",
-            )
 
 
 def inference_kwargs(family, request: EmbeddingsRequest) -> dict:
