@@ -126,7 +126,15 @@ def _initial_budget(family: Family) -> int:
 
 
 def is_ready() -> bool:
-    return _family is not None
+    """Loaded, and still able to answer.
+
+    ``_family is not None`` alone stays true forever once the weights are in
+    memory, including after the model worker thread has gone. A container in
+    that state reported ``ready: true`` while every request queued behind a
+    thread that would never take it -- healthy to anything watching, dead to
+    anything asking.
+    """
+    return _family is not None and (_batcher is None or _batcher.alive)
 
 
 def is_multimodal() -> bool:

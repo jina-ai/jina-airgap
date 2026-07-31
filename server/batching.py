@@ -38,6 +38,11 @@ import numpy as np
 import torch
 
 import telemetry
+from errors import ModelNotLoaded
+
+# How often a waiting request re-checks that the worker still exists. Short
+# enough that a death surfaces in seconds, long enough to cost nothing.
+_LIVENESS_POLL_S = 2.0
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +122,10 @@ class Batcher:
     def merges(self) -> bool:
         return self._merge
 
+    @property
+    def alive(self) -> bool:
+        return self._thread.is_alive()
+
     def submit(self, inputs: list, key: tuple, lengths: list[int]) -> list:
         """Enqueue and block until this job's rows are filled.
 
@@ -124,10 +133,23 @@ class Batcher:
         runs them in its threadpool and the event loop stays free. The pool's
         own size is the backpressure -- an unbounded queue in front of a single
         GPU would just convert overload into memory growth.
+
+        The wait is sliced rather than unbounded, and the only thing that ends
+        it early is the worker being gone. A deadline would be wrong here: a
+        max-context forward on CPU legitimately runs for minutes, so any number
+        large enough to be safe is too large to be useful. What must not happen
+        is a request waiting forever on a thread that has died -- there is no
+        supervisor to restart it, and every later request would queue behind
+        the same silence.
         """
         job = _Job(inputs, key, lengths)
         self._queue.put(job)
-        job.event.wait()
+        while not job.event.wait(_LIVENESS_POLL_S):
+            if not self._thread.is_alive():
+                raise ModelNotLoaded(
+                    "The model worker is no longer running; this container "
+                    "cannot serve and should be replaced."
+                )
         if job.error is not None:
             raise job.error
         return job.results

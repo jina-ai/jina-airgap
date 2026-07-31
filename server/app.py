@@ -83,7 +83,7 @@ _patch_transformers()
 
 import logging  # noqa: E402
 
-from fastapi import FastAPI  # noqa: E402
+from fastapi import FastAPI, Response  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
@@ -231,12 +231,19 @@ async def startup():
 
 
 @app.get("/health")
-async def health():
+async def health(response: Response):
+    ready = engine.is_ready()
+    if not ready:
+        # 503, not a 200 carrying `ready: false`. The Dockerfile's HEALTHCHECK
+        # is `curl -sf /health`, which passes on any 2xx -- so a body-only
+        # signal is one nothing reads. An orchestrator replaces the container
+        # on this; plain `docker run` at least marks it unhealthy.
+        response.status_code = 503
     resp = {
-        "status": "ok",
+        "status": "ok" if ready else "unavailable",
         "model": settings.short_model_id,
         "device": settings.device,
-        "ready": engine.is_ready(),
+        "ready": ready,
         "multimodal": engine.is_multimodal(),
         "endpoint": engine.SPEC.api_endpoint,
         "schemas": ["jina", "openai", "voyage", "gemini", "cohere"],
