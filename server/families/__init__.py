@@ -103,10 +103,20 @@ class Family(ABC):
 
         ``SentenceTransformer`` has no ``.config`` of its own, so reading one
         off it silently yields nothing.
+
+        Two module shapes exist. The stock ``Transformer`` holds the model at
+        ``.auto_model``; v4's wraps a PEFT model instead and has no such
+        attribute, but carries the config directly. Reading only the first
+        shape returned ``None`` there, which emptied ``known_tasks`` -- and an
+        empty vocabulary is not "no opinion", it is the signal that sends
+        ``fit_task`` to the default-plus-role fallback. On v4 that turned a
+        Cohere ``search_document`` into ``text-matching.passage`` rather than
+        ``retrieval.passage``: cosine 0.70 from the right answer, with a 200.
         """
         first = getattr(self.model, "_first_module", None)
         module = first() if callable(first) else None
-        return getattr(getattr(module, "auto_model", None), "config", None)
+        config = getattr(getattr(module, "auto_model", None), "config", None)
+        return config if config is not None else getattr(module, "config", None)
 
     def autocast(self):
         """Autocast context for encode().
