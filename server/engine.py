@@ -294,10 +294,15 @@ def named_task(name: str, *, field: str, vendor_values) -> str:
     Cohere's, the vocabulary can be ours. It is the same move as writing
     "jiaozi" in English rather than pretending it is a dumpling.
 
-    Only names this model actually serves; anything else is still a typo.
+    Only names this model actually serves; anything else is still a typo. A
+    model that declares no vocabulary at all serves none of them and
+    contradicts none of them either -- ``/v1/embeddings`` takes any task name
+    on those images and the model ignores it, which is also what the public
+    API does. Refusing here would have made the envelope decide the answer,
+    which is the one thing it must never do.
     """
     known = _require_embed().known_tasks
-    if known and name.partition(".")[0] in known:
+    if not known or name.partition(".")[0] in known:
         return name
     raise BadRequest(
         f"Unknown {field} '{name}'. Accepted: {', '.join(sorted(vendor_values))}"
