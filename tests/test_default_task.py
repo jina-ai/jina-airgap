@@ -13,7 +13,16 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "server"))
-import app  # noqa: E402
+try:
+    import app  # noqa: E402
+except ImportError as e:
+    # server/app.py pulls torch and transformers. Under pytest, skip rather than
+    # break collection for the whole suite when they are not installed.
+    if "pytest" not in sys.modules:
+        raise
+    import pytest
+
+    pytest.skip(f"server deps not installed ({e})", allow_module_level=True)
 
 PASS = "\033[32mPASS\033[0m"
 FAIL = "\033[31mFAIL\033[0m"

@@ -42,6 +42,18 @@ test_image() {
         return
     fi
 
+    # Startup logs must not mention downloading. transformers logs "A new version of
+    # the following files was downloaded from <hub url>" whenever it stages a
+    # trust_remote_code .py at runtime. Nothing is actually fetched (HF_HUB_OFFLINE=1
+    # makes that impossible), but it reads as an air-gap violation to customers, and
+    # it means the build failed to pre-stage the model code.
+    local LEAK="ok"
+    if docker logs "$NAME" 2>&1 | grep -q "was downloaded from"; then
+        LEAK="fail"
+        echo "  DOWNLOAD WARNING IN LOGS (model code not pre-staged at build time)" | tee -a "$LOGFILE"
+        docker logs "$NAME" 2>&1 | grep -A 3 "was downloaded from" >> "$LOGFILE"
+    fi
+
     # Reranker: use /v1/rerank instead of /v1/embeddings
     if echo "$IMAGE" | grep -q 'reranker'; then
         local RERANK_RESULT
@@ -50,12 +62,12 @@ test_image() {
             -d '{"query": "hello", "documents": ["world", "foo"], "model": "test"}' 2>&1)
         if echo "$RERANK_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert len(d['results']) > 0" 2>/dev/null; then
             echo "  Rerank OK" | tee -a "$LOGFILE"
-            echo "RESULT: $IMAGE HEALTH=ok RERANK=ok" | tee -a "$LOGFILE"
+            echo "RESULT: $IMAGE HEALTH=ok RERANK=ok LOGS=$LEAK" | tee -a "$LOGFILE"
         else
             echo "  Rerank FAILED" | tee -a "$LOGFILE"
             echo "  Response: $RERANK_RESULT" >> "$LOGFILE"
             docker logs "$NAME" 2>&1 | tail -20 >> "$LOGFILE"
-            echo "RESULT: $IMAGE HEALTH=ok RERANK=fail" | tee -a "$LOGFILE"
+            echo "RESULT: $IMAGE HEALTH=ok RERANK=fail LOGS=$LEAK" | tee -a "$LOGFILE"
         fi
     else
         local EMBED_RESULT
@@ -65,12 +77,12 @@ test_image() {
         if echo "$EMBED_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert len(d['data'][0]['embedding']) > 0" 2>/dev/null; then
             local DIM=$(echo "$EMBED_RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d['data'][0]['embedding']))")
             echo "  Embed OK, dim=$DIM" | tee -a "$LOGFILE"
-            echo "RESULT: $IMAGE HEALTH=ok EMBED=ok DIM=$DIM" | tee -a "$LOGFILE"
+            echo "RESULT: $IMAGE HEALTH=ok EMBED=ok DIM=$DIM LOGS=$LEAK" | tee -a "$LOGFILE"
         else
             echo "  Embed FAILED" | tee -a "$LOGFILE"
             echo "  Response: $EMBED_RESULT" >> "$LOGFILE"
             docker logs "$NAME" 2>&1 | tail -20 >> "$LOGFILE"
-            echo "RESULT: $IMAGE HEALTH=ok EMBED=fail" | tee -a "$LOGFILE"
+            echo "RESULT: $IMAGE HEALTH=ok EMBED=fail LOGS=$LEAK" | tee -a "$LOGFILE"
         fi
     fi
 

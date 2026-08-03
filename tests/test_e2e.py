@@ -63,6 +63,20 @@ def make_tiny_png_b64() -> str:
     return base64.b64encode(png).decode()
 
 
+# Every test below needs a running container. Under pytest, skip instead of
+# failing when there is none: a suite that is red by default trains people to
+# ignore it, which defeats the point of having it. Direct invocation
+# (`python tests/test_e2e.py`) is unaffected and still reports failures.
+if "pytest" in sys.modules:
+    import pytest
+
+    if request("GET", "/health")[0] != 200:
+        pytest.skip(
+            f"no server at {BASE_URL}; run a container or set TEST_URL",
+            allow_module_level=True,
+        )
+
+
 # =============================================================================
 # Text tests (all models)
 # =============================================================================
