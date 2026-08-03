@@ -17,17 +17,6 @@ ROOT = Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "models" / "catalog.json"
 GHCR = "https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2F"
 
-# Known prebuilt images on GHCR. Update when new ones are pushed.
-# To verify: `gh api /orgs/jina-ai/packages?package_type=container --jq '.[].name' | grep jina-on-prem`
-PREBUILT = {
-    "jina-embeddings-v5-omni-small",
-    "jina-embeddings-v5-omni-nano",
-    "jina-embeddings-v5-text-small",
-    "jina-embeddings-v5-text-nano",
-    "jina-reranker-v3",
-    "jina-embeddings-v3",
-    "jina-clip-v2",
-}
 
 
 def prebuilt_link(model_id: str, runtime: str) -> str:
@@ -100,7 +89,7 @@ def render() -> str:
         for m in by_type[t]:
             prebuilt = (
                 f"{prebuilt_link(m['id'], 'cpu')} / {prebuilt_link(m['id'], 'gpu')}"
-                if m.get("prebuilt") or m["id"] in PREBUILT
+                if m.get("prebuilt")
                 else "-"
             )
             row = [
