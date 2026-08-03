@@ -218,25 +218,30 @@ def count_tokens(texts: list[str], cap: Optional[int] = None) -> int:
     return sum(token_lengths(texts, cap))
 
 
-def _check_task(family: Family, task: Optional[str]) -> None:
-    """Reject a task the loaded model does not know, so a typo cannot silently
-    select a different LoRA adapter.
+def _check_task(task: Optional[str]) -> None:
+    """Reject a task the public API rejects, so a typo cannot silently select a
+    different LoRA adapter.
 
-    An empty ``known_tasks`` means the model exposes no vocabulary to check
-    against -- v4 and both v5 families -- and the task is passed through for
-    the model's own validator to refuse.
+    The vocabulary is ``SPEC.task_enum``, matched whole. Matching the base name
+    instead let through a whole family of values the public API refuses, and
+    two of them were not merely permissive:
+
+    - bare ``retrieval``, on every model whose enum lists only
+      ``retrieval.query`` and ``retrieval.passage``;
+    - suffixed forms like ``classification.query``, whose base is known but
+      whose full name no family recognises -- on v3 those reached the
+      translation table, missed, and came back as ``retrieval.passage``
+      vectors with a 200 on them.
+
+    An empty enum means the public API declares no ``task`` field for this
+    model at all, so there is nothing here to contradict: the value is passed
+    through and the model ignores it, which is what api.jina.ai does too.
     """
-    if not task:
-        return
-    known = family.known_tasks
-    if not known:
-        return
-    if task.partition(".")[0] in known or task in (family.prompts or ()):
+    if not task or not SPEC.task_enum or task in SPEC.task_enum:
         return
     raise BadRequest(
         f"Unknown task '{task}' for {settings.short_model_id}. "
-        f"This model accepts: {', '.join(sorted(known))} "
-        f"(optionally suffixed .query or .passage).",
+        f"This model accepts: {', '.join(SPEC.task_enum)}.",
         field="task",
     )
 
@@ -261,28 +266,71 @@ def fit_task(
     ``nl2code`` vectors instead would be the exact defect this rewrite exists
     to remove, in a new place: a wrong answer with a 200 on it.
 
-    Returning ``None`` means "no task", which is a real answer for two cases:
-    the vendor's own "unspecified" value, and a model that exposes no
-    vocabulary at all -- nothing to check against is not grounds to refuse.
+    Returning ``None`` means "no task", which is a real answer for three cases:
+    the vendor's own "unspecified" value, a model that publishes no vocabulary
+    at all, and a model that has the concept but names no form of it for this
+    role -- see the clip-v2 note below.
+
+    The answer is picked out of ``SPEC.task_enum`` rather than assembled from
+    base names, because the enum is the only thing that knows which forms
+    exist. v3 is the case that forces it: it has a clustering adapter and calls
+    it ``separation``, so a Cohere ``clustering`` must skip the word it shares
+    and land on the word this model actually takes.
     """
     family = _require_embed()
+    allowed = SPEC.task_enum
+    if not allowed:
+        return _fit_without_enum(family, candidates, role)
+
+    for name in candidates:
+        if role and f"{name}.{role}" in allowed:
+            return f"{name}.{role}"
+        if name in allowed:
+            return name
+
+    # The model has the concept and names no form of it for this role. clip-v2
+    # is the whole of this case: its enum is `retrieval.query` alone, because
+    # only the query side carries a prefix -- `config_sentence_transformers`
+    # has that one prompt and a null default. Its document side is therefore
+    # the unprefixed encoding, reached by sending no task, which is a real
+    # value of the native field. Refusing instead would leave a Cohere client
+    # unable to index against this model at all: `input_type` is required
+    # there, with no neutral member, so `search_document` is the only thing it
+    # can say for a document.
+    bases = {name.partition(".")[0] for name in allowed}
+    if any(name in bases for name in candidates):
+        return None
+    if not candidates:
+        return None
+    if role:
+        fallback = f"{tasks.default_task(SPEC.family).partition('.')[0]}.{role}"
+        if fallback in allowed:
+            return fallback
+    raise BadRequest(
+        f"'{value}' has no counterpart in {settings.short_model_id}, which "
+        f"serves: {', '.join(allowed)}. Nothing in the request says whether "
+        f"the text is a query or a document either, so there is no reading of "
+        f"it this model can answer.",
+        field=field,
+    )
+
+
+def _fit_without_enum(
+    family: Family, candidates: tuple, role: Optional[str]
+) -> Optional[str]:
+    """``fit_task`` for a model the public API declares no ``task`` field on.
+
+    Nothing to match against and nothing to refuse: the v2 family and clip-v1
+    take any task and ignore it, so the only question left is whether a role
+    survives the translation.
+    """
     known = family.known_tasks
     base = next((name for name in candidates if name in known), None)
     if base is not None:
         return f"{base}.{role}" if role else base
-    if not candidates:
-        return None
-    if role:
+    if role and candidates:
         return f"{tasks.default_task(SPEC.family).partition('.')[0]}.{role}"
-    if not known:
-        return None
-    raise BadRequest(
-        f"'{value}' has no counterpart in {settings.short_model_id}, which "
-        f"serves: {', '.join(sorted(known))}. Nothing in the request says "
-        f"whether the text is a query or a document either, so there is no "
-        f"reading of it this model can answer.",
-        field=field,
-    )
+    return None
 
 
 def named_task(name: str, *, field: str, vendor_values) -> str:
@@ -301,18 +349,14 @@ def named_task(name: str, *, field: str, vendor_values) -> str:
     API does. Refusing here would have made the envelope decide the answer,
     which is the one thing it must never do.
     """
-    known = _require_embed().known_tasks
-    if not known or name.partition(".")[0] in known:
+    _require_embed()
+    allowed = SPEC.task_enum
+    if not allowed or name in allowed:
         return name
     raise BadRequest(
-        f"Unknown {field} '{name}'. Accepted: {', '.join(sorted(vendor_values))}"
-        + (
-            f", or a task {settings.short_model_id} serves "
-            f"({', '.join(sorted(known))}, optionally suffixed .query "
-            f"or .passage)."
-            if known
-            else "."
-        ),
+        f"Unknown {field} '{name}'. Accepted: "
+        f"{', '.join(sorted(vendor_values))}, or a task "
+        f"{settings.short_model_id} serves ({', '.join(allowed)}).",
         field=field,
     )
 
@@ -389,7 +433,7 @@ def embed(
     to *say* is the model's business, and this is where the model is.
     """
     family = _require_embed()
-    _check_task(family, task)
+    _check_task(task)
     _check_dimensions(dimensions)
     extra = _check_extras(family, extra)
     task, prompt_name = family.resolve_task(task)

@@ -41,18 +41,13 @@ _DEFAULTS = {
     "code-embeddings": "nl2code.query",
 }
 
-# v3's task vocabulary IS ``retrieval.query`` / ``retrieval.passage``, so the
-# suffix is preserved rather than collapsed. Unknown tasks fall back to
-# ``retrieval.passage``.
-V3_TASKS = {
-    "retrieval": "retrieval.passage",
-    "retrieval.query": "retrieval.query",
-    "retrieval.passage": "retrieval.passage",
-    "text-matching": "text-matching",
-    "classification": "classification",
-    "clustering": "text-matching",
-    "separation": "separation",
-}
+# v3 needs no table: its prompts are keyed by the task name itself, so the
+# published enum's strings are already what ``map_prompt_name`` looks up. The
+# table that used to be here translated a suffix-less ``retrieval`` alias the
+# public API does not accept, and defaulted everything it did not recognise to
+# ``retrieval.passage`` -- which is how ``clustering`` (v3's clustering adapter
+# is named ``separation``, arXiv 2409.10173 s4.3.5) and ``classification.query``
+# came back as retrieval vectors with a 200 on them.
 
 # v5's custom encode only accepts the bare base task, so the .query/.passage
 # suffix is collapsed here and carried into ``prompt_name`` instead.
@@ -150,7 +145,10 @@ INPUT_TYPE_ROLES = {
     "document": (("retrieval",), PASSAGE),
     "search_document": (("retrieval",), PASSAGE),
     "classification": (("classification",), None),
-    "clustering": (("clustering",), None),
+    # Most families call it ``clustering``; v3 calls the same adapter
+    # ``separation``. Offering both, most-shared-word first, is what lets one
+    # vendor value land on whichever name the loaded model publishes.
+    "clustering": (("clustering", "separation"), None),
     # Cohere pairs this with `images`, so the modality already says what the
     # input is and there is no retrieval role to carry.
     "image": ((), None),
@@ -163,7 +161,7 @@ TASK_TYPE_ROLES = {
     "RETRIEVAL_DOCUMENT": (("retrieval",), PASSAGE),
     "SEMANTIC_SIMILARITY": (("text-matching",), None),
     "CLASSIFICATION": (("classification",), None),
-    "CLUSTERING": (("clustering",), None),
+    "CLUSTERING": (("clustering", "separation"), None),
     "QUESTION_ANSWERING": (("qa", "retrieval"), QUERY),
     "FACT_VERIFICATION": (("retrieval",), QUERY),
     "CODE_RETRIEVAL_QUERY": (("nl2code", "code", "retrieval"), QUERY),

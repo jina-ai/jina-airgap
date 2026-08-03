@@ -32,6 +32,13 @@
         "clustering",
         "classification"
       ],
+      "task_enum": [
+        "retrieval.query",
+        "retrieval.passage",
+        "text-matching",
+        "clustering",
+        "classification"
+      ],
       "endpoints": [
         "embedding",
         "classify"
@@ -88,6 +95,13 @@
       "description": "Multimodal embedding model (text, image, audio, video, PDF), 1.04B params, 8K context",
       "tasks": [
         "retrieval",
+        "text-matching",
+        "clustering",
+        "classification"
+      ],
+      "task_enum": [
+        "retrieval.query",
+        "retrieval.passage",
         "text-matching",
         "clustering",
         "classification"
@@ -152,6 +166,13 @@
         "clustering",
         "classification"
       ],
+      "task_enum": [
+        "retrieval.query",
+        "retrieval.passage",
+        "text-matching",
+        "clustering",
+        "classification"
+      ],
       "endpoints": [
         "embedding",
         "classify"
@@ -205,6 +226,13 @@
       "description": "Smallest text embedding model, 239M params, 8K context",
       "tasks": [
         "retrieval",
+        "text-matching",
+        "clustering",
+        "classification"
+      ],
+      "task_enum": [
+        "retrieval.query",
+        "retrieval.passage",
         "text-matching",
         "clustering",
         "classification"
@@ -385,6 +413,18 @@
         "code2nl",
         "code2completion"
       ],
+      "task_enum": [
+        "nl2code.query",
+        "nl2code.passage",
+        "qa.query",
+        "qa.passage",
+        "code2code.query",
+        "code2code.passage",
+        "code2nl.query",
+        "code2nl.passage",
+        "code2completion.query",
+        "code2completion.passage"
+      ],
       "endpoints": [
         "embedding"
       ],
@@ -439,6 +479,18 @@
         "code2nl",
         "code2completion"
       ],
+      "task_enum": [
+        "nl2code.query",
+        "nl2code.passage",
+        "qa.query",
+        "qa.passage",
+        "code2code.query",
+        "code2code.passage",
+        "code2nl.query",
+        "code2nl.passage",
+        "code2completion.query",
+        "code2completion.passage"
+      ],
       "endpoints": [
         "embedding"
       ],
@@ -490,6 +542,13 @@
         "retrieval",
         "text-matching",
         "code"
+      ],
+      "task_enum": [
+        "text-matching",
+        "retrieval.query",
+        "retrieval.passage",
+        "code.query",
+        "code.passage"
       ],
       "endpoints": [
         "embedding",
@@ -632,6 +691,9 @@
         "retrieval",
         "classification"
       ],
+      "task_enum": [
+        "retrieval.query"
+      ],
       "endpoints": [
         "embedding",
         "train",
@@ -687,6 +749,13 @@
         "text-matching",
         "separation",
         "classification"
+      ],
+      "task_enum": [
+        "retrieval.query",
+        "retrieval.passage",
+        "text-matching",
+        "classification",
+        "separation"
       ],
       "endpoints": [
         "embedding",
@@ -914,6 +983,7 @@
         "retrieval",
         "classification"
       ],
+      "task_enum": [],
       "endpoints": [
         "embedding",
         "train",
@@ -1118,6 +1188,7 @@
         "retrieval",
         "text-matching"
       ],
+      "task_enum": [],
       "endpoints": [
         "embedding",
         "fine-tuning"
@@ -1160,6 +1231,7 @@
         "retrieval",
         "text-matching"
       ],
+      "task_enum": [],
       "endpoints": [
         "embedding",
         "fine-tuning"
@@ -1201,6 +1273,7 @@
         "retrieval",
         "text-matching"
       ],
+      "task_enum": [],
       "endpoints": [
         "embedding",
         "fine-tuning"
@@ -1243,6 +1316,7 @@
         "retrieval",
         "text-matching"
       ],
+      "task_enum": [],
       "endpoints": [
         "embedding",
         "fine-tuning"
@@ -1285,6 +1359,7 @@
         "retrieval",
         "text-matching"
       ],
+      "task_enum": [],
       "endpoints": [
         "embedding",
         "fine-tuning"
@@ -1326,6 +1401,7 @@
         "retrieval",
         "text-matching"
       ],
+      "task_enum": [],
       "endpoints": [
         "embedding"
       ],
