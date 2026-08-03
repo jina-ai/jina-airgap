@@ -2,7 +2,7 @@
 
 import logging
 from abc import abstractmethod
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 import torch
 
@@ -18,17 +18,41 @@ def document_text(document: Any) -> str:
     return document if isinstance(document, str) else document.get("text", "")
 
 
+class Ranked(NamedTuple):
+    """One scored document.
+
+    ``embedding`` is the document vector the model formed on its way to the
+    score. Only the Jina ranking family has one to give: a CrossEncoder reads a
+    query-document pair together and emits a scalar, so there is no per-document
+    vector anywhere in it to return.
+    """
+
+    index: int
+    score: float
+    embedding: Optional[list[float]] = None
+
+
 class RerankFamily(Family):
     verb, kind, endpoint = "rerank", "reranker", "/v1/rerank"
 
+    # Whether this family can hand back the vectors behind its scores.
+    embeds_documents = False
+
     @abstractmethod
     def rank(
-        self, query: str, documents: list[str], top_n: Optional[int]
-    ) -> list[tuple[int, float]]:
+        self,
+        query: str,
+        documents: list[str],
+        top_n: Optional[int],
+        return_embeddings: bool = False,
+    ) -> list[Ranked]:
         """Score ``documents`` against ``query``.
 
-        Returns ``(original_index, relevance_score)`` pairs, already sorted
-        best-first with ``top_n`` applied.
+        Returns :class:`Ranked` entries, already sorted best-first with
+        ``top_n`` applied. ``return_embeddings`` only ever arrives true on a
+        family that sets ``embeds_documents`` -- ``engine.rerank`` refuses it
+        elsewhere rather than accepting the request and answering without the
+        embeddings, which is the failure this parameter exists to avoid.
         """
 
     def render_document(self, document: Any) -> Any:
@@ -63,8 +87,12 @@ class CrossEncoderFamily(RerankFamily):
             logger.info("Set pad_token = eos_token for reranker")
 
     def rank(
-        self, query: str, documents: list[str], top_n: Optional[int]
-    ) -> list[tuple[int, float]]:
+        self,
+        query: str,
+        documents: list[str],
+        top_n: Optional[int],
+        return_embeddings: bool = False,
+    ) -> list[Ranked]:
         # convert_to_tensor=True keeps the model's native dtype (e.g. bf16 for
         # jina-reranker-v2-base-multilingual); cast to fp32 before numpy because
         # numpy has no bf16 dtype.
@@ -76,11 +104,26 @@ class CrossEncoderFamily(RerankFamily):
         if hasattr(scores, "float"):
             scores = scores.float().detach().cpu().numpy()
         ranked = sorted(
-            ((i, float(s)) for i, s in enumerate(scores)),
-            key=lambda scored: scored[1],
+            (Ranked(i, float(s)) for i, s in enumerate(scores)),
+            key=lambda scored: scored.score,
             reverse=True,
         )
         return ranked[:top_n] if top_n else ranked
+
+
+def _unit(vector: Any) -> list[float]:
+    """L2-normalize a document vector.
+
+    ``rerank()`` returns the projector output as-is: its scoring path
+    normalizes inside ``cosine_similarity``, which reads the tensor without
+    changing it, so nothing on the way out ever does. The public API returns
+    unit vectors. Left unnormalized these would rank identically and differ
+    from api.jina.ai by a per-document scale factor -- correct-looking, and
+    invisible to any check that only compares ordering or cosine.
+    """
+    return torch.nn.functional.normalize(
+        torch.as_tensor(vector, dtype=torch.float32), dim=-1
+    ).tolist()
 
 
 class JinaRankingFamily(RerankFamily):
@@ -91,6 +134,8 @@ class JinaRankingFamily(RerankFamily):
     CrossEncoders. v3.5 is a drop-in upgrade: same class, same interface,
     per-item truncation baked into its own rerank().
     """
+
+    embeds_documents = True
 
     def render_document(self, document: Any) -> Any:
         """Always an object, whatever the caller sent -- measured on
@@ -125,13 +170,23 @@ class JinaRankingFamily(RerankFamily):
         )
 
     def rank(
-        self, query: str, documents: list[str], top_n: Optional[int]
-    ) -> list[tuple[int, float]]:
+        self,
+        query: str,
+        documents: list[str],
+        top_n: Optional[int],
+        return_embeddings: bool = False,
+    ) -> list[Ranked]:
         # Its own block-wise listwise rerank() already returns documents sorted
         # by relevance_score descending with top_n applied -- no manual sort.
         return [
-            (int(item["index"]), float(item["relevance_score"]))
-            for item in self.model.rerank(query, documents, top_n=top_n)
+            Ranked(
+                int(item["index"]),
+                float(item["relevance_score"]),
+                _unit(item["embedding"]) if return_embeddings else None,
+            )
+            for item in self.model.rerank(
+                query, documents, top_n=top_n, return_embeddings=return_embeddings
+            )
         ]
 
 
@@ -150,8 +205,12 @@ class ColbertFamily(RerankFamily):
         )
 
     def rank(
-        self, query: str, documents: list[str], top_n: Optional[int]
-    ) -> list[tuple[int, float]]:
+        self,
+        query: str,
+        documents: list[str],
+        top_n: Optional[int],
+        return_embeddings: bool = False,
+    ) -> list[Ranked]:
         # Late interaction: encode query and documents as token-level
         # multi-vectors and score via MaxSim. pylate.rank.rerank takes a
         # nested-by-query layout (one inner list per query); with a single query
@@ -174,5 +233,5 @@ class ColbertFamily(RerankFamily):
             queries_embeddings=queries_embeddings,
             documents_embeddings=[documents_embeddings],
         )
-        scored = [(int(item["id"]), float(item["score"])) for item in ranked[0]]
+        scored = [Ranked(int(item["id"]), float(item["score"])) for item in ranked[0]]
         return scored[:top_n] if top_n else scored

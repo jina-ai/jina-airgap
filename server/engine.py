@@ -545,6 +545,7 @@ def rerank(
     documents: list,
     top_n: Optional[int] = None,
     return_documents: bool = True,
+    return_embeddings: bool = False,
     max_doc_length: Optional[int] = None,
     truncate: bool = True,
 ) -> tuple[list[dict], int, float]:
@@ -559,8 +560,20 @@ def rerank(
     ``truncate`` is Voyage's ``truncation``, and false means raise rather than
     trim. Silently scoring the first N tokens of a document the caller believes
     was read in full is exactly what they turned it off to avoid.
+
+    ``return_embeddings`` is refused rather than ignored on a model that has no
+    document vector. Accepting it and answering without one would be a 200 that
+    is missing the thing the caller asked for, with nothing in the response to
+    say so.
     """
     family = _require_rerank()
+    if return_embeddings and not family.embeds_documents:
+        raise BadRequest(
+            f"{settings.short_model_id} scores each query-document pair "
+            "directly and never forms a document vector, so there is no "
+            "embedding for it to return.",
+            field="return_embeddings",
+        )
     texts = [document_text(document) for document in documents]
     if max_doc_length:
         texts = [_clip(text, max_doc_length) for text in texts]
@@ -570,7 +583,7 @@ def rerank(
 
     start = time.perf_counter()
     with _MODEL_LOCK, torch.inference_mode():
-        ranked = family.rank(query, texts, top_n)
+        ranked = family.rank(query, texts, top_n, return_embeddings=return_embeddings)
     elapsed = time.perf_counter() - start
 
     telemetry.record(n_tokens, elapsed)
@@ -580,12 +593,17 @@ def rerank(
     )
 
     results = []
-    for index, score in ranked:
-        # `document` is omitted, never null, when return_documents is false --
-        # measured on api.jina.ai for every reranker.
-        result = {"index": index, "relevance_score": serialize.relevance_score(score)}
+    for item in ranked:
+        # `document` and `embedding` are omitted, never null, when not asked
+        # for -- measured on api.jina.ai for every reranker.
+        result = {
+            "index": item.index,
+            "relevance_score": serialize.relevance_score(item.score),
+        }
         if return_documents:
-            result["document"] = family.render_document(documents[index])
+            result["document"] = family.render_document(documents[item.index])
+        if item.embedding is not None:
+            result["embedding"] = item.embedding
         results.append(result)
     return results, n_tokens, elapsed
 

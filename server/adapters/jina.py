@@ -169,6 +169,10 @@ class RerankRequest(BaseModel):
         default=None, ge=1, validation_alias=AliasChoices("top_n", "top_k")
     )
     return_documents: bool = True
+    # Only jina-reranker-v3 / v3.5 form a document vector on the way to a
+    # score; every other reranker here is refused rather than answered without
+    # one. Public API parity: those two return a 512-dim unit vector per result.
+    return_embeddings: bool = False
     max_doc_length: Optional[int] = Field(
         default=None,
         ge=1,
@@ -215,6 +219,7 @@ def rerank(request: RerankRequest):
         request.documents,
         top_n=request.top_n,
         return_documents=request.return_documents,
+        return_embeddings=request.return_embeddings,
         max_doc_length=request.max_doc_length,
         truncate=request.truncate,
     )
