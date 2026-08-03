@@ -32,7 +32,7 @@ env/
 *.zip
 
 # Model weights (should only be in downloader stage via HF download)
-# NOTE: docker/download_model.py is intentionally NOT excluded - needed for build
+# NOTE: docker/*.py (download_model.py, verify_staging.py) intentionally NOT excluded - needed for build
 *.safetensors
 *.bin
 *.pt

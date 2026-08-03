@@ -3,6 +3,7 @@
     {
       "id": "jina-embeddings-v5-omni-small",
       "hf_repo": "jinaai/jina-embeddings-v5-omni-small",
+      "revision": "05f4151c87083f204159bfa15e53fdb0320ffef1",
       "type": "embedding",
       "family": "embeddings-v5",
       "parameters": "1.74B",
@@ -61,6 +62,7 @@
     {
       "id": "jina-embeddings-v5-omni-nano",
       "hf_repo": "jinaai/jina-embeddings-v5-omni-nano",
+      "revision": "b0d2521203a610fc5967a7c2d53990bae14d9e23",
       "type": "embedding",
       "family": "embeddings-v5",
       "parameters": "1.04B",
@@ -119,6 +121,7 @@
     {
       "id": "jina-embeddings-v5-text-small",
       "hf_repo": "jinaai/jina-embeddings-v5-text-small",
+      "revision": "dd76d535f5447ca3897a9c893fb1e612ead98192",
       "type": "embedding",
       "family": "embeddings-v5",
       "parameters": "677M",
@@ -174,6 +177,7 @@
     {
       "id": "jina-embeddings-v5-text-nano",
       "hf_repo": "jinaai/jina-embeddings-v5-text-nano",
+      "revision": "8a7f00aac812071b69403df470f1038ec85f8925",
       "type": "embedding",
       "family": "embeddings-v5",
       "parameters": "239M",
@@ -229,6 +233,7 @@
     {
       "id": "jina-vlm",
       "hf_repo": "jinaai/jina-vlm",
+      "revision": "ddfa80b180f87f59873fd1cea352dec51183ab88",
       "type": "vlm",
       "family": "vlm",
       "parameters": "2.4B",
@@ -267,6 +272,7 @@
     {
       "id": "jina-reranker-v3",
       "hf_repo": "jinaai/jina-reranker-v3",
+      "revision": "10fb694fc21f7a710a563ff1eb977a460f3868e4",
       "type": "reranker",
       "family": "reranker",
       "parameters": "597M",
@@ -308,6 +314,7 @@
     {
       "id": "jina-code-embeddings-1.5b",
       "hf_repo": "jinaai/jina-code-embeddings-1.5b",
+      "revision": "39aeb4fb9b60f930934c78ae5d749a46287c248a",
       "type": "embedding",
       "family": "code-embeddings",
       "parameters": "1.5B",
@@ -360,6 +367,7 @@
     {
       "id": "jina-code-embeddings-0.5b",
       "hf_repo": "jinaai/jina-code-embeddings-0.5b",
+      "revision": "4db235132dafbe56a8b9c5f59b59795ecf58a4a7",
       "type": "embedding",
       "family": "code-embeddings",
       "parameters": "494M",
@@ -412,6 +420,7 @@
     {
       "id": "jina-embeddings-v4",
       "hf_repo": "jinaai/jina-embeddings-v4",
+      "revision": "853c867b65b749f3c3c72a06868140d842e04f06",
       "type": "embedding",
       "family": "embeddings-v4",
       "parameters": "3.8B",
@@ -465,6 +474,7 @@
     {
       "id": "jina-reranker-m0",
       "hf_repo": "jinaai/jina-reranker-m0",
+      "revision": "94bfe0aeb2d4dd7978362699cddd5893d4e0adc8",
       "type": "reranker",
       "family": "reranker",
       "parameters": "2.4B",
@@ -506,6 +516,7 @@
     {
       "id": "ReaderLM-v2",
       "hf_repo": "jinaai/ReaderLM-v2",
+      "revision": "1d07078459ee1e880a22d67387b5e683d50a6e4b",
       "type": "reader",
       "family": "reader-lm",
       "parameters": "1.54B",
@@ -543,10 +554,11 @@
     {
       "id": "jina-clip-v2",
       "hf_repo": "jinaai/jina-clip-v2",
+      "revision": "e10d47f5691d0454a0fb5d13f46f2199b74cb436",
       "extra_repos": [
-        "jinaai/jina-clip-implementation",
-        "jinaai/jina-embeddings-v3",
-        "jinaai/xlm-roberta-flash-implementation"
+        "jinaai/jina-clip-implementation@39e6a55ae971b59bea6e44675d237c99762e7ee2",
+        "jinaai/jina-embeddings-v3@ab036b023d30b4d1138c4c3bfa9f0c445ab455d6",
+        "jinaai/xlm-roberta-flash-implementation@845308d0fd72a8406a3e378450e1a09522790419"
       ],
       "type": "embedding",
       "family": "clip",
@@ -599,6 +611,7 @@
     {
       "id": "jina-embeddings-v3",
       "hf_repo": "jinaai/jina-embeddings-v3",
+      "revision": "ab036b023d30b4d1138c4c3bfa9f0c445ab455d6",
       "type": "embedding",
       "family": "embeddings-v3",
       "parameters": "570M",
@@ -647,7 +660,7 @@
         "torchvision": "==0.20.1"
       },
       "extra_repos": [
-        "jinaai/xlm-roberta-flash-implementation"
+        "jinaai/xlm-roberta-flash-implementation@845308d0fd72a8406a3e378450e1a09522790419"
       ],
       "prebuilt": true,
       "prebuilt_versions": {
@@ -658,6 +671,7 @@
     {
       "id": "jina-colbert-v2",
       "hf_repo": "jinaai/jina-colbert-v2",
+      "revision": "4552c4dc1ffd7d7a635b6a41a1077fe9c9cdd974",
       "type": "colbert",
       "family": "colbert",
       "parameters": "560M",
@@ -699,7 +713,7 @@
         "pylate": "==1.5.0"
       },
       "extra_repos": [
-        "jinaai/xlm-roberta-flash-implementation"
+        "jinaai/xlm-roberta-flash-implementation@845308d0fd72a8406a3e378450e1a09522790419"
       ],
       "prebuilt": true,
       "prebuilt_versions": {
@@ -710,6 +724,7 @@
     {
       "id": "reader-lm-1.5b",
       "hf_repo": "jinaai/reader-lm-1.5b",
+      "revision": "274dc4fe6f5ac66793cd921fd0bb07dc4a3094f4",
       "type": "reader",
       "family": "reader-lm",
       "parameters": "1.54B",
@@ -748,6 +763,7 @@
     {
       "id": "reader-lm-0.5b",
       "hf_repo": "jinaai/reader-lm-0.5b",
+      "revision": "46cb69fff9d100f9c3c2a135d59f365fb99a0121",
       "type": "reader",
       "family": "reader-lm",
       "parameters": "494M",
@@ -786,6 +802,7 @@
     {
       "id": "jina-reranker-v2-base-multilingual",
       "hf_repo": "jinaai/jina-reranker-v2-base-multilingual",
+      "revision": "9cfeff2df7d40d1b78e75e5e9cebec92a99813c9",
       "type": "reranker",
       "family": "reranker",
       "parameters": "278M",
@@ -822,9 +839,10 @@
     {
       "id": "jina-clip-v1",
       "hf_repo": "jinaai/jina-clip-v1",
+      "revision": "ceb3e44ca4d6eceaa4f3fb58b1c1a5748b3f29b6",
       "extra_repos": [
-        "jinaai/jina-clip-implementation",
-        "jinaai/jina-bert-flash-implementation"
+        "jinaai/jina-clip-implementation@39e6a55ae971b59bea6e44675d237c99762e7ee2",
+        "jinaai/jina-bert-flash-implementation@b78d1595de294f13ffe7b19d6cd63892a6e4e7a4"
       ],
       "type": "embedding",
       "family": "clip",
@@ -869,6 +887,7 @@
     {
       "id": "jina-reranker-v1-turbo-en",
       "hf_repo": "jinaai/jina-reranker-v1-turbo-en",
+      "revision": "b8c14f4e723d9e0aab4732a7b7b93741eeeb77c2",
       "type": "reranker",
       "family": "reranker",
       "parameters": "37.8M",
@@ -904,6 +923,7 @@
     {
       "id": "jina-reranker-v1-tiny-en",
       "hf_repo": "jinaai/jina-reranker-v1-tiny-en",
+      "revision": "aca45de6945b5dc6399abcd2a9c55ded5dc9111f",
       "type": "reranker",
       "family": "reranker",
       "parameters": "33M",
@@ -939,6 +959,7 @@
     {
       "id": "jina-reranker-v1-base-en",
       "hf_repo": "jinaai/jina-reranker-v1-base-en",
+      "revision": "a05700294977fa3ecadc070b1f5b2a76e0bf1eef",
       "type": "reranker",
       "family": "reranker",
       "parameters": "137M",
@@ -974,6 +995,7 @@
     {
       "id": "jina-colbert-v1-en",
       "hf_repo": "jinaai/jina-colbert-v1-en",
+      "revision": "31bb5a4d063a793f4aaaf6ecb9bf4ef1879ddf7d",
       "type": "colbert",
       "family": "colbert",
       "parameters": "137M",
@@ -1009,7 +1031,7 @@
         "pylate": "==1.5.0"
       },
       "extra_repos": [
-        "jinaai/jina-bert-implementation"
+        "jinaai/jina-bert-implementation@f3ec4cf7de7e561007f27c9efc7148b0bd713f81"
       ],
       "prebuilt": true,
       "prebuilt_versions": {
@@ -1020,6 +1042,7 @@
     {
       "id": "jina-embeddings-v2-base-es",
       "hf_repo": "jinaai/jina-embeddings-v2-base-es",
+      "revision": "8e2d780d8fd38f81ca9123ee28e4c5a968aaf21e",
       "type": "embedding",
       "family": "embeddings-v2",
       "parameters": "161M",
@@ -1060,6 +1083,7 @@
     {
       "id": "jina-embeddings-v2-base-code",
       "hf_repo": "jinaai/jina-embeddings-v2-base-code",
+      "revision": "516f4baf13dec4ddddda8631e019b5737c8bc250",
       "type": "embedding",
       "family": "embeddings-v2",
       "parameters": "137M",
@@ -1099,6 +1123,7 @@
     {
       "id": "jina-embeddings-v2-base-de",
       "hf_repo": "jinaai/jina-embeddings-v2-base-de",
+      "revision": "3f9eede875721714945b6a99a3198299243cf2be",
       "type": "embedding",
       "family": "embeddings-v2",
       "parameters": "161M",
@@ -1139,6 +1164,7 @@
     {
       "id": "jina-embeddings-v2-base-zh",
       "hf_repo": "jinaai/jina-embeddings-v2-base-zh",
+      "revision": "c1ff9086a89a1123d7b5eff58055a665db4fb4b9",
       "type": "embedding",
       "family": "embeddings-v2",
       "parameters": "161M",
@@ -1179,6 +1205,7 @@
     {
       "id": "jina-embeddings-v2-base-en",
       "hf_repo": "jinaai/jina-embeddings-v2-base-en",
+      "revision": "322d4d7e2f35e84137961a65af894fda0385eb7a",
       "type": "embedding",
       "family": "embeddings-v2",
       "parameters": "137M",
@@ -1218,6 +1245,7 @@
     {
       "id": "jina-embedding-b-en-v1",
       "hf_repo": "jinaai/jina-embedding-b-en-v1",
+      "revision": "32aa658e5ceb90793454d22a57d8e3a14e699516",
       "type": "embedding",
       "family": "embeddings-v1",
       "parameters": "110M",

@@ -7,6 +7,7 @@
 # those versions, nothing more.
 
 ARG MODEL_ID=jinaai/jina-embeddings-v5-text-nano
+ARG MODEL_REVISION=""
 ARG HF_TOKEN=""
 
 # ---------------------------------------------------------------------------
@@ -15,6 +16,7 @@ ARG HF_TOKEN=""
 FROM python:3.11-slim AS downloader
 
 ARG MODEL_ID
+ARG MODEL_REVISION
 ARG HF_TOKEN
 ARG EXTRA_REPOS=""
 
@@ -25,6 +27,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/model_cache \
     HF_TOKEN=${HF_TOKEN} \
     MODEL_ID=${MODEL_ID} \
+    MODEL_REVISION=${MODEL_REVISION} \
     EXTRA_REPOS=${EXTRA_REPOS}
 
 # Install model deps from pinned requirements for download and pre-load
@@ -38,7 +41,7 @@ RUN grep -v '^\s*#' /tmp/model-requirements.txt | grep -v '^\s*$' | \
     xargs --no-run-if-empty pip install --no-cache-dir
 
 # Copy and run the download script
-COPY docker/download_model.py /tmp/download_model.py
+COPY docker/download_model.py docker/verify_staging.py /tmp/
 RUN python /tmp/download_model.py
 
 # ---------------------------------------------------------------------------

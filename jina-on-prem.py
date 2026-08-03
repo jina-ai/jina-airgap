@@ -339,6 +339,10 @@ def cmd_bundle(args):
         "-t", image_tag,
     ]
     build_args += ["--build-arg", f"EXTRA_REPOS={','.join(model.get('extra_repos', []))}"]
+    # Pin the model to the exact HF commit recorded in the catalog so a rebuild of
+    # the same tag ships identical code and weights. Absent = track main.
+    if model.get("revision"):
+        build_args += ["--build-arg", f"MODEL_REVISION={model['revision']}"]
     if args.hf_token:
         build_args += ["--build-arg", f"HF_TOKEN={args.hf_token}"]
     # GPU dtype override per model — some architectures (jina-bert ALiBi: v1/v2-base)

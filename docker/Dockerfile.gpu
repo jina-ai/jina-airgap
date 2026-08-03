@@ -7,6 +7,7 @@
 # and written to model-requirements.txt at bundle time.
 
 ARG MODEL_ID=jinaai/jina-embeddings-v5-text-nano
+ARG MODEL_REVISION=""
 ARG HF_TOKEN=""
 ARG TORCH_BASE=pytorch/pytorch:2.5.1-cuda12.1-cudnn9-devel
 # Default GPU dtype for the encode loop. Override per model via --build-arg
@@ -21,6 +22,7 @@ ARG DTYPE=float16
 FROM python:3.11-slim AS downloader
 
 ARG MODEL_ID
+ARG MODEL_REVISION
 ARG HF_TOKEN
 ARG EXTRA_REPOS=""
 
@@ -31,6 +33,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/model_cache \
     HF_TOKEN=${HF_TOKEN} \
     MODEL_ID=${MODEL_ID} \
+    MODEL_REVISION=${MODEL_REVISION} \
     EXTRA_REPOS=${EXTRA_REPOS}
 
 # torch and torchvision from CPU index for download stage
@@ -43,7 +46,7 @@ RUN grep -v '^\s*#' /tmp/model-requirements.txt | grep -v '^\s*$' | \
     xargs --no-run-if-empty pip install --no-cache-dir
 
 # Copy and run the download script
-COPY docker/download_model.py /tmp/download_model.py
+COPY docker/download_model.py docker/verify_staging.py /tmp/
 RUN python /tmp/download_model.py
 
 # ---------------------------------------------------------------------------
