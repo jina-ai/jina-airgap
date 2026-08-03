@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-An on-prem / air-gapped deployment toolkit for Jina AI models. It bundles embedding, reranker, reader, ColBERT, CLIP, and VLM models into self-contained Docker images that run fully offline. It is **not** a model-training or LLM-chat serving project — inference is embeddings + reranking, served via `sentence-transformers` / HuggingFace `transformers` on PyTorch (no vLLM, ONNX, or TensorRT).
+An on-prem / air-gapped deployment toolkit for Jina AI models. It bundles embedding, reranker, reader, ColBERT, CLIP, and VLM models into self-contained Docker images that run fully offline. It is **not** a model-training or LLM-chat serving project: inference is embeddings + reranking, served via `sentence-transformers` / HuggingFace `transformers` on PyTorch (no vLLM, ONNX, or TensorRT).
 
 ## How this is publicly positioned
 
@@ -21,7 +21,7 @@ Launch post: [On-prem in under 5 minutes: Jina embedding models now available fo
 Everything is organized around two phases, and confusing them causes most mistakes:
 
 1. **Bundle (Phase 1, network-connected):** `jina-on-prem.py bundle` reads `models/catalog.json`, runs a two-stage `docker build` that downloads weights from HF Hub, patches model code for offline use, deletes the model repo's own `requirements.txt`, bakes in pinned deps, then `docker save | gzip` → `MODEL.tar.gz`.
-2. **Deploy (Phase 2, offline):** `docker load < MODEL.tar.gz` then `docker run -p 8080:8080`. No repo, no Python, no network — just Docker. `HF_HUB_OFFLINE=1` + `TRANSFORMERS_OFFLINE=1` are baked in so any code path that would hit the network fails instead of phoning home.
+2. **Deploy (Phase 2, offline):** `docker load < MODEL.tar.gz` then `docker run -p 8080:8080`. No repo, no Python, no network, just Docker. `HF_HUB_OFFLINE=1` + `TRANSFORMERS_OFFLINE=1` are baked in so any code path that would hit the network fails instead of phoning home.
 
 ## Common commands
 
@@ -44,15 +44,15 @@ python jina-on-prem.py serve --local-path /data/models/jina-v5-nano
 python jina-on-prem.py keygen --sub acme-corp --days 90 [--model <id>] [--secret <s>] [--json]
 ```
 
-The CLI (`jina-on-prem.py`) is intentionally **stdlib-only, zero third-party imports** — it must run on a bare builder machine before any deps are installed. Do not add imports of `torch`, `requests`, etc. to it. Model deps live inside the Docker image only. `bundle`/`deploy`/`serve`/`keygen` also have hidden single-word aliases.
+The CLI (`jina-on-prem.py`) is intentionally **stdlib-only, zero third-party imports**: it must run on a bare builder machine before any deps are installed. Do not add imports of `torch`, `requests`, etc. to it. Model deps live inside the Docker image only. `bundle`/`deploy`/`serve`/`keygen` also have hidden single-word aliases.
 
 ## Tests
 
 ```bash
-# License gate — pure unit tests, no server/Docker/network
+# License gate: pure unit tests, no server/Docker/network
 python tests/test_license.py
 
-# App import + default-task logic — imports server/app.py (pulls torch/transformers), no weights
+# App import + default-task logic: imports server/app.py (pulls torch/transformers), no weights
 python tests/test_default_task.py
 
 # End-to-end API tests against a LIVE server (start a container first)
@@ -62,7 +62,7 @@ TEST_URL=http://localhost:8080 python tests/test_e2e.py
 bash test_airgap.sh jina/jina-embeddings-v5-text-nano:cpu
 ```
 
-There is no pytest harness or single-test selector — tests are plain scripts with a `check(name, cond)` helper that print PASS/FAIL and exit non-zero on failure. Run a whole file; to run one case, edit the file.
+There is no pytest harness or single-test selector; tests are plain scripts with a `check(name, cond)` helper that print PASS/FAIL and exit non-zero on failure. Run a whole file; to run one case, edit the file.
 
 ## Architecture and where things live
 
@@ -108,14 +108,14 @@ Declared for schema compatibility and silently inert. Do not assume they work, a
 - `docker-compose.yml` is one container with the GPU `deploy` block commented out. `docker-compose.multi.yml` runs embed + rerank as two containers on 8080/8081, because one container serves exactly one model. Neither declares replicas or resource limits.
 - No Helm chart, Kustomize, Terraform, systemd unit, or checked-in load-balancer config exists. `.github/workflows/` holds only `link-ghcr-packages.yml` (packaging, not deployment).
 
-## Non-obvious rules (from hard-won debugging — see CONTRIBUTING.md)
+## Non-obvious rules (from hard-won debugging; see CONTRIBUTING.md)
 
-- **Never loosen the `transformers`/`sentence-transformers` pins in `catalog.json`.** They are exact for a reason (e.g. v5-text needs `Qwen3Config` from 4.51; v5-omni needs `Qwen3VLVisionConfig` from 4.57). HF model repos request `transformers>=5.x`, which breaks these models — that's why their `requirements.txt` is deleted at build time.
+- **Never loosen the `transformers`/`sentence-transformers` pins in `catalog.json`.** They are exact for a reason (e.g. v5-text needs `Qwen3Config` from 4.51; v5-omni needs `Qwen3VLVisionConfig` from 4.57). HF model repos request `transformers>=5.x`, which breaks these models, which is why their `requirements.txt` is deleted at build time.
 - **Rerankers load as `CrossEncoder`, not `SentenceTransformer`,** and Qwen3-based rerankers need `pad_token = eos_token` set after load or batch inference crashes. Test rerankers on `/v1/rerank`, not `/v1/embeddings`.
-- **Do not test air-gap with `--network=none`** — it kills the host↔container network too. The real guarantee is the offline env vars + baked weights; test with normal `-p 8080:8080`.
+- **Do not test air-gap with `--network=none`**: it kills the host↔container network too. The real guarantee is the offline env vars + baked weights; test with normal `-p 8080:8080`.
 - `app.py` monkey-patches `transformers.dynamic_module_utils.resolve_trust_remote_code` to always return `True`, using `*args, **kwargs` because the signature changed between transformers 4.51 and 5.x. Preserve that shape.
-- **GHCR packages default to private** even from a public repo, and there is no API to flip them — it's a manual per-package web-UI step (`scripts/check-prebuilt-visibility.sh` audits state). Dockerfiles carry `LABEL org.opencontainers.image.source=...` so images link back to the repo.
-- The `:gpu-opt` throughput images and their dynamic-batcher env vars (`JINA_BATCH_TOKENS`, `JINA_MERGE_TASK`, `JINA_LEAN`, `JINA_COMPILE`, …) are documented in the README, but that batcher serving stack is **not** in this tree — `server/app.py` is the single-request server. Don't assume those env vars exist in this code.
+- **GHCR packages default to private** even from a public repo, and there is no API to flip them; it's a manual per-package web-UI step (`scripts/check-prebuilt-visibility.sh` audits state). Dockerfiles carry `LABEL org.opencontainers.image.source=...` so images link back to the repo.
+- The `:gpu-opt` throughput images and their dynamic-batcher env vars (`JINA_BATCH_TOKENS`, `JINA_MERGE_TASK`, `JINA_LEAN`, `JINA_COMPILE`, …) are documented in the README, but that batcher serving stack is **not** in this tree; `server/app.py` is the single-request server. Don't assume those env vars exist in this code.
 
 ## Runtime env vars the server reads
 
@@ -123,13 +123,16 @@ The complete set `server/app.py` reads is: `JINA_MODEL_ID` (which model is loade
 
 ## Licensing (license gate)
 
-`server/license.py` + the middleware in `app.py` implement an **offline, HMAC-signed, expiring entitlement signal — not DRM.** The signing secret ships in the image on purpose (防君子不防小人); a technical user can trivially mint or bypass a key. Key design invariant: **a paying, deployed customer must never be blocked.**
+`server/license.py` + the middleware in `app.py` implement an **offline, HMAC-signed, expiring entitlement signal, not DRM.** The signing secret ships in the image on purpose (防君子不防小人); a technical user can trivially mint or bypass a key. Key design invariant: **a paying, deployed customer must never be blocked.**
 
-- Modes via `JINA_LICENSE_MODE`: **`warn`** (default, fail-open — always serves, only logs + reports in `/health`; ship sold customers here), **`enforce`** (returns 403 on missing/expired/invalid past grace — trials/POCs only), **`off`** (no checks). `JINA_LICENSE_GRACE_DAYS` (default 14) keeps an expired key working in enforce mode. Legacy `JINA_LICENSE_ENFORCE=0/1` still maps to off/enforce.
-- Key format: `JINA-<base64url(payload)>.<base64url(hmac_sha256)>`; payload is `{sub, iat, exp, model, v}`. `decide()` is the single authority on whether to serve and is wrapped to fail open on any unexpected error. `/health`, `/`, `/docs`, `/redoc`, `/openapi.json`, `/favicon.ico` are always open; only inference POSTs are ever gated.
+- Modes via `JINA_LICENSE_MODE`: **`warn`** (default, fail-open: always serves, only logs + reports in `/health`; ship sold customers here), **`enforce`** (returns 403 on missing/expired/invalid past grace; trials/POCs only), **`off`** (no checks). `JINA_LICENSE_GRACE_DAYS` (default 14) keeps an expired key working in enforce mode. Legacy `JINA_LICENSE_ENFORCE=0/1` still maps to off/enforce.
+- Key format: `JINA-<base64url(payload)>.<base64url(hmac_sha256)>`; payload is `{sub, iat, exp, model, v}`. `decide()` is the single authority on whether to serve and is wrapped to fail open on any unexpected error.
+- **The gate is method-first, not path-first.** `app.py:255` passes any `GET` / `HEAD` / `OPTIONS` regardless of path; `_LICENSE_OPEN_PATHS` (`/health`, `/`, `/docs`, `/redoc`, `/openapi.json`, `/favicon.ico`) is an *additional* pass for any method. It only looks like a path allowlist because every inference endpoint happens to be a POST. Any inference route added under `GET` is ungated by default.
+- **The signing secret is baked as an image `ENV`, and baked empty.** `Dockerfile.cpu:94-95` and `Dockerfile.gpu:131-132` set `ARG LICENSE_SECRET=""` then `ENV JINA_LICENSE_SECRET=${LICENSE_SECRET}`, so shipped images carry an empty value and reach `DEFAULT_SECRET` only via the `or` fallback in `_secret()` (`license.py:91`). Two implications: a baked secret is readable with one `docker inspect`, so a private HMAC secret buys nothing; and a build that forgets `--build-arg LICENSE_SECRET=` silently falls back to the public constant with nothing observable from outside.
+- **Scope `""` is a wildcard.** The check is `scope not in ("*", "", model_id, short)` (`license.py:187`), so a payload with `model: ""` validates against every model. Anything minting keys programmatically must reject an empty scope rather than relying on the container.
 
 ## Conventions
 
 - Commit message prefixes in use: `fix:`, `feat:`, `docs:`, `refactor:`, `chore:`, `build:`, `experiment:`.
-- Markdown in `docs/` mirrors the wiki — keep API examples to one curl per schema, no verbose request/response schemas (see CONTRIBUTING.md "README maintenance").
+- Markdown in `docs/` mirrors the wiki; keep API examples to one curl per schema, no verbose request/response schemas (see CONTRIBUTING.md "README maintenance").
 - When adding a model: add it to `catalog.json` with pinned `deps`, then regenerate the catalog wiki page via `scripts/gen_catalog_md.py`.
