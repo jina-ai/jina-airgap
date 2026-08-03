@@ -1,12 +1,12 @@
-Common questions from SAs and customers, with short, link-back answers.
+Common questions with short answers.
 
 ## Business / licensing
 
 **Do we need to buy a license?**
 For most production use yes - all Jina v5/v4/v3 models are CC-BY-NC-4.0 and the "NC" forbids commercial use without a license. v2 and v1 models are Apache-2.0, free for any use. Contact [Elastic sales](https://www.elastic.co/contact). The CLI itself, the toolkit, and the Docker images are Apache-2.0.
 
-**Can the customer evaluate without buying?**
-Yes - use any Apache-2.0 model (`jina-embeddings-v2-base-en`, `jina-clip-v1`, `jina-reranker-v1-*`). Quality is older but the deployment story is identical. Upgrade to a v5 model after the customer commits.
+**Can I evaluate without a commercial license?**
+Yes - use any Apache-2.0 model (`jina-embeddings-v2-base-en`, `jina-clip-v1`, `jina-reranker-v1-*`). Quality is older but the deployment workflow is identical. Upgrade to a v5 model when you are ready for production.
 
 **Where do the weights come from?**
 HuggingFace Hub at bundle time. Repos under `jinaai/` org. Once bundled, the offline deploy never touches HuggingFace.
@@ -16,10 +16,10 @@ No. The toolkit has no analytics, no license check, no version-check ping. `HF_H
 
 ## Technical
 
-**Does the customer need internet during deploy?**
+**Is internet required during deploy?**
 No. Internet is only needed during *bundling* (downloading model weights). The bundle is a single `.tar.gz` that can be transferred via any approved channel.
 
-**Does the customer need a GPU?**
+**Is a GPU required?**
 No, but throughput will be much lower on CPU. See [Sizing & Hardware](Sizing-And-Hardware).
 
 **Can we run multiple models on the same host?**
@@ -71,16 +71,16 @@ Yes - blue/green at the load balancer. Bring up a second container with the new 
 **What logs does the container emit?**
 FastAPI access logs + model load info + warnings. `docker logs <container>` to see them. Quiet by default (no per-request payload logging).
 
-## Sales objections
+## Comparison with alternatives
 
 **"Why not Ollama / vLLM / LocalAI?"**
-Those are great projects for hosted-yourself LLMs. jina-on-prem is specifically for *embeddings* and *rerankers* (the search workload), wraps Jina-specific models with their custom tokenizers and adapters, and standardizes on a multi-schema API. For LLM chat, point the customer at Ollama or vLLM separately.
+Those are great projects for hosted-yourself LLMs. jina-on-prem is specifically for *embeddings* and *rerankers* (the search workload), wraps Jina-specific models with their custom tokenizers and adapters, and standardizes on a multi-schema API. For LLM chat, use Ollama or vLLM separately.
 
 **"Why not export the model to ONNX and run with onnxruntime?"**
 You can, and for some models that's a fine path. jina-on-prem's value-add is: pinning the exact transformers/torch versions per model (custom code requires specific versions), wrapping the multi-schema API, and the bundle-and-transfer workflow with documented walkthroughs. ONNX export drops some model-specific code paths (LoRA adapters, custom rerankers) that the maintained Python implementation supports.
 
 **"Can you guarantee it never sends data out?"**
-Yes by design - HF_HUB_OFFLINE=1 + TRANSFORMERS_OFFLINE=1 + no other outbound code. The customer's security team can audit the image and the source code on GitHub. Stronger guarantee: run it on a host with no egress route at all (most air-gapped customers already do this).
+Yes by design - HF_HUB_OFFLINE=1 + TRANSFORMERS_OFFLINE=1 + no other outbound code. The image and source code on GitHub are auditable. Stronger guarantee: run it on a host with no egress route at all (most air-gapped environments already enforce this).
 
 **"What's the long-term commitment?"**
 The Apache-2.0 toolkit, Dockerfiles, and CLI are public. If Jina shuts down tomorrow, customers can keep rebundling existing models with their weights. The CC-BY-NC license on weights is what they're paying for, not the runtime. For the full support/maintenance horizon and what "end of life" means for an air-gapped model, see [Product & Model Lifecycle (EOL)](Product-And-Model-Lifecycle).

@@ -1,4 +1,4 @@
-Concrete playbooks for the most common customer situations. Each scenario walks through: what the customer asked for, which model to recommend, what hardware to size, and how to deploy.
+Deployment guides for common use cases. Each scenario covers: the use case, which model to use, hardware sizing, and how to deploy.
 
 ```mermaid
 flowchart LR
@@ -6,8 +6,7 @@ flowchart LR
     classDef rec fill:#e8f0ff,stroke:#3b6ad6
     classDef deploy fill:#d9f5e0,stroke:#1f8f3a
 
-    Q[Customer asks
-something] --> SCN{Which scenario?}
+    Q[Use case] --> SCN{Which scenario?}
     SCN --> S1[Semantic search
 in offline ES]:::ask
     SCN --> S2[Replacing
@@ -158,14 +157,14 @@ curl http://rerank-host:8080/v1/rerank \
 
 **Recommend**: `jina-embeddings-v5-text-nano` or `text-small`. The smallest workable model lowers the audit/security review burden.
 
-**Compliance pitch**:
-- "Model weights and dependencies are on customer hardware. We do not see your data or your queries."
-- "Container has `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` set - no path exists for the model to fetch anything at runtime."
-- "Image is built once on a connected machine, transferred under your change-control process, run on offline machines indefinitely."
-- "No license server, no phone-home, no telemetry."
-- "Source code is on GitHub (Apache-2.0 for the CLI), reviewable by your security team."
+**Security properties for compliance review**:
+- Model weights and dependencies run on the deployment host. No data or queries leave the environment.
+- The container has `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` baked in — no code path exists for the model to fetch anything at runtime.
+- The image is built once on a connected machine, transferred via the organisation's change-control process, and run on offline machines indefinitely.
+- No license server, no phone-home, no telemetry.
+- Source code is on GitHub (Apache-2.0 for the CLI) and is auditable.
 
-Pair this with [Why Air-Gap -> What "air-gap" means in this project](Why-Airgap#what-air-gap-means-in-this-project) when responding to the customer's security questionnaire.
+See [Why Air-Gap -> What "air-gap" means in this project](Why-Airgap#what-air-gap-means-in-this-project) for a full technical breakdown suitable for security questionnaires.
 
 ## Next
 

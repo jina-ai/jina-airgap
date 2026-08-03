@@ -1,8 +1,8 @@
-There are 28 models. Most customers need one of six. Use this decision tree.
+There are 28 models. Most deployments use one of six. Use this decision tree.
 
 ```mermaid
 flowchart TD
-    A[What is the customer doing?] --> B{Just text?}
+    A[What is the use case?] --> B{Just text?}
     B -- yes --> C{Multilingual?}
     B -- no --> D{Modalities?}
     C -- mostly English, latency matters --> M1[jina-embeddings-v5-text-nano
@@ -48,7 +48,7 @@ or v4 for biggest]
 
 **Bigger isn't always better.** v5-text-small is a stronger model than v5-text-nano, but the nano is 3x smaller and runs on CPU. For a customer with tight latency SLA and English-only data, nano often wins.
 
-**CC-BY-NC-4.0 license matters for sales.** All v5/v4/v3 models are CC-BY-NC-4.0 - the customer needs a commercial license from Elastic. v2 and v1 models are Apache-2.0 and free for any use. If the customer is allergic to vendor lock-in or wants to evaluate without buying, start with `jina-embeddings-v2-base-en` (or `-zh`, `-de`, `-es`).
+**License model.** All v5/v4/v3 models are CC-BY-NC-4.0 — commercial use requires a license from Elastic. v2 and v1 models are Apache-2.0 and free for any use. To evaluate without a commercial license, or for deployments that require Apache-2.0, use `jina-embeddings-v2-base-en` (or `-zh`, `-de`, `-es`).
 
 **Multimodal models cost more memory.** A v5-omni-small needs ~8GB VRAM. A v5-text-nano needs 2GB. If the customer doesn't actually need image/audio/video, don't pay for it.
 
@@ -79,4 +79,4 @@ Both models can run side-by-side in two containers, OR you can deploy two replic
 
 - [Sizing & Hardware](Sizing-And-Hardware) - how much GPU/RAM/disk
 - [Model Catalog](Model-Catalog) - full specs for all 28
-- [Customer Scenarios](Customer-Scenarios) - applied examples
+- [Customer Scenarios](Customer-Scenarios) - deployment examples by use case

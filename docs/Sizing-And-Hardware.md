@@ -39,7 +39,7 @@ or move to bigger GPU]
 
 Full per-model VRAM in the [Model Catalog](Model-Catalog).
 
-> **L4 is the workhorse**. 24GB, sane price, available in most regions, handles any model except v4-multimodal. Default to it unless the customer needs A100 latency or has L4 stockout (see [Troubleshooting -> L4 stockout](Troubleshooting#l4-stockout)).
+> **L4 is the workhorse**. 24GB, sane price, available in most regions, handles any model except v4-multimodal. Default to it unless A100 latency is required or L4 is unavailable in the target region (see [Troubleshooting -> L4 stockout](Troubleshooting#l4-stockout)).
 
 ## Disk planning
 
@@ -142,7 +142,7 @@ To run two models (embed + rerank), copy the Deployment+Service blocks with diff
 
 ## Customer-side prerequisites checklist
 
-Before you go on-site or hand over a bundle:
+Before deploying or transferring a bundle:
 
 - [ ] Host with Docker 24+ installed
 - [ ] (GPU) NVIDIA driver >= 525, CUDA Container Toolkit installed (`nvidia-smi` works in container)
@@ -151,7 +151,7 @@ Before you go on-site or hand over a bundle:
 - [ ] Network plan: how does the calling app reach this host? localhost / LAN IP / internal DNS?
 - [ ] (Optional) Load balancer in front if multi-replica
 
-If the customer has none of this set up, `scripts/bootstrap-gcp.sh` is a template - copy it and adapt for their cloud or on-prem.
+If this is not already configured, `scripts/bootstrap-gcp.sh` is a template — adapt it for your cloud or on-prem environment.
 
 ## Next
 

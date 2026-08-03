@@ -1,4 +1,4 @@
-How licensing works for self-managed (SM) / air-gapped Jina AI deployments, and how the optional built-in **time-bound license key** lets you show an auditor a concrete, expiring entitlement control without ever risking a customer outage. This page is written for the field: sales engineers, solutions architects, procurement, and security reviewers. It explains, step by step, what the key does, how to issue one, how to deploy with it, what it can and cannot do, and exactly why a paying customer can never be locked out by it.
+How licensing works for self-managed (SM) / air-gapped Jina AI deployments, and how the optional built-in **time-bound license key** lets you show an auditor a concrete, expiring entitlement control without ever risking a deployment outage. This page explains, step by step, what the key does, how to issue one, how to deploy with it, what it can and cannot do, and exactly why a paying customer can never be locked out by it.
 
 > **Read this first.** There are two separate things here, and confusing them causes most of the noise. (1) **The commercial license** is the contract that grants a customer the right to run a CC-BY-NC-4.0 model in production - obtained through Elastic sales. That is what actually governs usage. (2) **The license key** described on this page is an *optional technical convenience*: a small, offline, expiring token you can hand to a deployment so that ops and audit can see "this instance carries an entitlement that expires on date X". It is a **speed-bump for honest process compliance, not a lock** (防君子不防小人). The customer holds the model weights, so there is nothing to truly lock - and by design, **the key defaults to a mode that never blocks a running deployment.** If you take one thing from this page: *turning on a license key can never take a paying customer offline.*
 
@@ -174,7 +174,7 @@ No `docker build`, no re-transfer of the multi-GB bundle, no downtime beyond a c
 
 ## Capability boundaries: what it can and cannot do
 
-Be honest about this with customers and auditors - overselling it is how you lose trust in a security review.
+These boundaries are intentional and should be represented accurately in security reviews.
 
 | Capability | Supported? | Notes |
 |---|---|---|

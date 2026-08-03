@@ -1,4 +1,4 @@
-Customers and SAs frequently ask "why not just use X?". Short answer for each.
+How jina-on-prem compares to common alternatives.
 
 ```mermaid
 flowchart TB
@@ -98,7 +98,7 @@ DIY is a valid path if you're customizing heavily. jina-on-prem is the curated d
 
 ```mermaid
 flowchart TD
-    A[What does the customer need?]
+    A[What does the deployment need?]
     A --> B{Workload}
     B -- Embeddings or reranking --> C{Internet OK?}
     B -- LLM chat --> D[Ollama or vLLM]
@@ -112,16 +112,16 @@ custom runtime]
 default]
 ```
 
-## Picking for an evaluator
+## Evaluation guide
 
-The fastest "show me it works" demo path:
+The fastest "show me it works" path:
 
 1. Pull `jina-embeddings-v5-text-nano:cpu` from GHCR (5 min)
-2. `docker run` on the customer's laptop or a test VM
+2. `docker run` on a laptop or test VM
 3. `curl /v1/embeddings`
-4. Open `/docs` (FastAPI swagger UI) to show all 4 schemas
+4. Open `/docs` (FastAPI swagger UI) to see all 4 schemas
 
-If the customer wants to compare with another vendor: build the same `.tar.gz` for a second model (v3 or v4), put them side by side. Different bundle = different model, same runtime contract.
+To compare models side by side: build a `.tar.gz` for a second model (v3 or v4) using the same workflow. Different bundle = different model, same runtime contract.
 
 ## Next
 

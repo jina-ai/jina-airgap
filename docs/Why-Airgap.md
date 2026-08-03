@@ -12,13 +12,13 @@ Some customers cannot - or will not - send data to a third-party API. They want 
 | **Industrial / OT** | Plant networks isolated from corporate IT. Mission-critical with no tolerance for upstream outages. | Operational tech network, edge inference next to sensors |
 | **Sovereign / Localized AI** | Data residency law (EU AI Act, China CSL, India DPDPA). The model must run in-country, often in-customer-DC. | National cloud, customer DC, government-approved region |
 
-If your customer says any of these, jina-on-prem is in scope:
+jina-on-prem is a good fit when:
 
-- "Our procurement won't approve a SaaS endpoint."
-- "We can't send `<sensitive>` to a vendor API."
-- "The host has no outbound internet."
-- "We need this to keep working if the upstream goes down."
-- "Audit needs to see the model artifacts on our disks."
+- Procurement requires on-premises or customer-managed infrastructure.
+- Data cannot be sent to a third-party API.
+- The deployment host has no outbound internet.
+- The system must keep working if an upstream service goes down.
+- Audit requires model artifacts to be stored on customer hardware.
 
 ## How it compares
 
@@ -90,5 +90,5 @@ The request never crosses the customer perimeter. The container has no code path
 ## Next
 
 - [Quick Start](Quick-Start) - get the first response back in 5 minutes
-- [Customer Scenarios](Customer-Scenarios) - concrete playbooks per industry
-- [Sizing & Hardware](Sizing-And-Hardware) - GPU/CPU sizing for your customer's volume
+- [Customer Scenarios](Customer-Scenarios) - deployment guides per industry
+- [Sizing & Hardware](Sizing-And-Hardware) - GPU/CPU sizing

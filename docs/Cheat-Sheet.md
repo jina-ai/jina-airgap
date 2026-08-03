@@ -1,6 +1,6 @@
-One-page reference. Screenshot this for customer calls.
+One-page quick reference.
 
-## Pitch in one sentence
+## Summary
 
 > Deploy Jina AI embedding, reranker, and reader models on customer infrastructure with zero outbound network calls.
 
@@ -15,7 +15,7 @@ One-page reference. Screenshot this for customer calls.
    (network)   (USB / SCP)                  (offline)        4 schemas
 ```
 
-## Commands the customer runs
+## Deployment commands
 
 ```bash
 # Phase 1 (connected machine):
@@ -82,11 +82,11 @@ Full table: [Model Catalog](Model-Catalog).
 - [ ] Channel agreed for transferring the `.tar.gz`
 - [ ] Decision: single host (POC), HA pair (prod), or k8s
 
-## The three sentences that close most calls
+## Key technical guarantees
 
-1. "Your data and queries never leave your network - the env vars `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` are baked into the image, no code path exists for an outbound call."
-2. "It's OpenAI-compatible - any client that uses `openai.OpenAI(base_url=...)` works without code changes."
-3. "You can verify the air-gap yourself: run on a host with no egress route, `docker logs` will be silent on outbound attempts. Source code on GitHub is Apache-2.0, auditable."
+1. Data and queries never leave the deployment host — `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` are baked into the image; no code path exists for an outbound call.
+2. OpenAI-compatible — any client using `openai.OpenAI(base_url=...)` works without code changes.
+3. The air-gap is verifiable: run on a host with no egress route and `docker logs` will be silent on outbound attempts. Source code on GitHub is Apache-2.0 and auditable.
 
 ## Common first-mile errors
 

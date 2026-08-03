@@ -14,7 +14,7 @@ Mirror of the [GitHub Wiki](https://github.com/jina-ai/jina-on-prem/wiki). Edit 
 - [API Reference](API-Reference.md) - four schemas + reranker + ES integration
 - [Architecture](Architecture.md) - how the pieces fit
 - [Model Catalog](Model-Catalog.md) - auto-generated, regenerate via `python3 scripts/gen_catalog_md.py`
-- [FAQ](FAQ.md) - common SA / customer / sales-objection questions
+- [FAQ](FAQ.md) - common questions
 - [Troubleshooting](Troubleshooting.md) - errors and fixes
 
 ## Wiki-only files

@@ -1,4 +1,4 @@
-How the pieces fit together. Useful for SAs answering "what is this thing made of?" and for engineers debugging.
+How the pieces fit together — for engineers integrating or debugging jina-on-prem.
 
 ![mascot](images/pixel-mascot-shield.png)
 

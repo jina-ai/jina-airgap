@@ -1,4 +1,4 @@
-Short definitions for terms used across the wiki. For non-engineers in sales/SA roles.
+Short definitions for terms used across the wiki.
 
 ## A
 

@@ -2,7 +2,7 @@
 
 ![bundle flow](images/pixel-bundle-flow.png)
 
-For sales/SA/field engineers walking a customer through their first deployment, start with **[Why Air-Gap](Why-Airgap)**, then **[Quick Start](Quick-Start)**. For developers integrating the API into an application, start with **[API Reference](API-Reference)**.
+For first-time deployments, start with **[Why Air-Gap](Why-Airgap)**, then **[Quick Start](Quick-Start)**. For developers integrating the API into an application, start with **[API Reference](API-Reference)**.
 
 ## At a glance
 
@@ -39,7 +39,7 @@ That's the whole product. The connected machine has internet to fetch model weig
 
 | You are... | Start here |
 |---|---|
-| An SA/sales engineer evaluating jina-on-prem for a customer | [Why Air-Gap](Why-Airgap), then [Customer Scenarios](Customer-Scenarios) |
+| Evaluating jina-on-prem for a deployment | [Why Air-Gap](Why-Airgap), then [Customer Scenarios](Customer-Scenarios) |
 | Comparing this against Ollama / vLLM / ONNX / hosted API | [Comparison vs alternatives](Comparison) |
 | A field engineer deploying at a customer site | [Quick Start](Quick-Start), then [Sizing & Hardware](Sizing-And-Hardware) |
 | A developer integrating the API | [API Reference](API-Reference) |
