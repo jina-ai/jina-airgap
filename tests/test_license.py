@@ -5,6 +5,7 @@ Run:
   python tests/test_license.py
 """
 
+import json
 import os
 import sys
 
@@ -49,6 +50,24 @@ def main():
     check("scope match (short)", L.validate(km, "jinaai/jina-embeddings-v5-text-nano")[0])
     check("scope mismatch", L.validate(km, "jinaai/jina-reranker-v3")[1] == "model_not_licensed")
     check("wildcard any model", L.validate(k, "jinaai/anything")[0])
+
+    # --- an empty scope must never read as unrestricted ---
+    # Only a buggy issuer can produce one (the CLI maps a falsy --model to "*"),
+    # and in warn mode it would otherwise be an invisible unlimited-scope key.
+    kz = L.issue("acme", 30, "")
+    check("empty scope rejected", L.validate(kz, "jinaai/anything")[1] == "empty_scope")
+    check("empty scope rejected when model_id unknown",
+          L.validate(kz, "")[1] == "empty_scope")
+    check("empty scope still fail-open in warn",
+          L.decide(kz, "jinaai/anything")["block"] is False)
+    os.environ["JINA_LICENSE_MODE"] = "enforce"
+    check("empty scope blocks under enforce", L.decide(kz, "jinaai/anything")["block"])
+    clear_env()
+    # A *missing* model claim still means any model, unlike an empty one.
+    claims = {"sub": "acme", "iat": 0, "exp": 2 ** 31 - 1, "v": 1}
+    raw = json.dumps(claims, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    kn = f"{L.PREFIX}{L._b64e(raw)}.{L._sign_with(L._secret(), raw)}"
+    check("missing model claim -> unrestricted", L.validate(kn, "jinaai/anything")[0])
 
     # --- secret rotation ---
     kc = L.issue("acme", 30, "*", secret="custom-secret")
