@@ -183,8 +183,16 @@ def validate(key: Optional[str], model_id: str = "") -> tuple[bool, str, dict]:
             return False, "license_expired", payload
 
         scope = payload.get("model", "*")
+        # An empty scope means a buggy issuer, not "unrestricted" - use "*" for
+        # that. Checked separately because the tuple below holds model_id, which
+        # is itself "" when JINA_MODEL_ID is unset, so an empty scope would slip
+        # through there. A *missing* model claim still means any model (default
+        # above); only an explicitly empty one is rejected.
+        if not scope:
+            return False, "empty_scope", payload
+
         short = model_id.split("/")[-1] if model_id else ""
-        if scope not in ("*", "", model_id, short):
+        if scope not in ("*", model_id, short):
             return False, "model_not_licensed", payload
 
         return True, "ok", payload
