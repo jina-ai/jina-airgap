@@ -86,6 +86,27 @@ echo "ghp_..." | docker login ghcr.io -u YOUR_GH_USERNAME --password-stdin
 
 If using `sudo docker pull`, run `sudo docker login` first (root and user have separate credentials).
 
+## No matching manifest on Apple Silicon
+
+**Symptom**:
+
+```
+Error response from daemon: no matching manifest for linux/arm64/v8 in the manifest list entries: no match for platform in manifest: not found
+```
+
+**Cause**: prebuilt images are published for `linux/amd64` only. On an arm64 daemon (Apple Silicon Mac, arm servers) Docker looks for an arm64 entry in the manifest list, finds none, and refuses rather than picking a foreign architecture on your behalf.
+
+**Fix**: name the platform. Docker then takes the amd64 image and runs it under emulation (Rosetta on macOS):
+
+```bash
+docker pull --platform linux/amd64 ghcr.io/jina-ai/jina-on-prem/jina-embeddings-v5-text-nano:cpu
+docker run --platform linux/amd64 -p 8080:8080 ghcr.io/jina-ai/jina-on-prem/jina-embeddings-v5-text-nano:cpu
+```
+
+The flag is needed on both commands: `pull` chooses which image to fetch, `run` tells the daemon to emulate it. [`scripts/pull-prebuilt.sh`](https://github.com/jina-ai/jina-on-prem/blob/main/scripts/pull-prebuilt.sh) detects an arm64 daemon and adds the flag for you.
+
+Emulated output is correct but the throughput is a fraction of native, so treat this as a way to try the API, not to measure it. For actual development on a Mac, skip Docker and run the server directly - `python jina-on-prem.py serve --model jinaai/jina-embeddings-v5-text-nano` uses native arm64 PyTorch.
+
 ## CUDA mismatch
 
 **Symptom**: GPU container exits immediately with `CUDA error: no kernel image is available for execution on the device` or `forward compatibility was attempted on non supported HW`.

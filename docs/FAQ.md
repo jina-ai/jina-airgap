@@ -29,7 +29,7 @@ Yes - each is a separate container on a separate port. With 1xL4 (24GB VRAM) you
 Yes, no special integration - it's just a stateless container with one HTTP port. Sample manifest in [Sizing & Hardware -> Redundancy](Sizing-And-Hardware#redundancy).
 
 **Can I run it on Apple Silicon?**
-The CPU image is `linux/amd64`. On Apple Silicon it works under Rosetta emulation but is slow. For Mac dev, run `python jina-on-prem.py serve --model X` directly via Python (the `serve` command bypasses Docker).
+Yes, with a flag. The CPU image is `linux/amd64`, so `docker pull` fails with `no matching manifest for linux/arm64/v8` until you pass `--platform linux/amd64` to both `pull` and `run` (see [Troubleshooting](Troubleshooting#no-matching-manifest-on-apple-silicon)). It then works under Rosetta emulation but is slow. For Mac dev, run `python jina-on-prem.py serve --model X` directly via Python (the `serve` command bypasses Docker).
 
 **Will it work with our load balancer / WAF?**
 Yes - it's plain HTTP/JSON. Add TLS, auth headers, IP allow-lists at the LB layer.

@@ -95,6 +95,7 @@ Full table: [Model Catalog](Model-Catalog).
 |---|---|
 | `permission denied connecting to docker API` | `sudo usermod -aG docker $USER`, reconnect |
 | `Error response: unauthorized` (on `docker pull`) | `docker login ghcr.io -u USER`; needs `read:packages` PAT |
+| `no matching manifest for linux/arm64/v8` | Apple Silicon: add `--platform linux/amd64` to `pull` and `run` |
 | `bind: address already in use` | Map a different port: `-p 9090:8080` |
 | Container exits with CUDA error | Driver too old: `nvidia-smi` should show >=525 |
 | `OOM` on GPU | Check [Model Catalog](Model-Catalog) VRAM; pick smaller model or bigger GPU |

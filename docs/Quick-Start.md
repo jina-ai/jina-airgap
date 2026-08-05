@@ -44,6 +44,14 @@ docker pull ghcr.io/jina-ai/jina-on-prem/jina-embeddings-v5-text-nano:cpu
 
 ~800 MB compressed, 2.9 GB on disk. Takes 1-3 minutes on a typical link.
 
+> **Apple Silicon Mac:** that command fails with `no matching manifest for linux/arm64/v8`, because prebuilts are published for `linux/amd64` only. Name the platform and Docker pulls the amd64 image to run under Rosetta emulation - correct, just slow:
+>
+> ```bash
+> docker pull --platform linux/amd64 ghcr.io/jina-ai/jina-on-prem/jina-embeddings-v5-text-nano:cpu
+> ```
+>
+> The flag is needed again on `docker run` in step 4. See [Troubleshooting](Troubleshooting#no-matching-manifest-on-apple-silicon).
+
 ## 3. (Optional) Export for offline transport
 
 If the target host has no network:
@@ -69,7 +77,7 @@ docker run -d --name jina-nano -p 8080:8080 \
 docker logs -f jina-nano   # watch for "Uvicorn running on http://0.0.0.0:8080"
 ```
 
-For GPU: add `--gpus all` and use the `:gpu` tag.
+For GPU: add `--gpus all` and use the `:gpu` tag. On Apple Silicon: add `--platform linux/amd64`.
 
 ## 5. Verify
 
@@ -120,5 +128,6 @@ The three errors that catch most first-time users:
 - `permission denied while trying to connect to the docker API` -> you're not in the `docker` group. [Fix](Troubleshooting#docker-permission-denied).
 - `Error response from daemon: error from registry: unauthorized` -> not logged into GHCR. Run step 1.
 - `bind: address already in use` -> something's on port 8080. Map a different port: `-p 9090:8080`.
+- `no matching manifest for linux/arm64/v8` -> Apple Silicon Mac. Add `--platform linux/amd64` to `pull` and `run`. [Fix](Troubleshooting#no-matching-manifest-on-apple-silicon).
 
 Full list: [Troubleshooting](Troubleshooting).
