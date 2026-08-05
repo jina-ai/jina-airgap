@@ -296,7 +296,7 @@
         "numpy": ">=2.0.0,<2.3.0",
         "torchvision": "==0.20.1"
       },
-      "prebuilt": true,
+      "prebuilt": false,
       "prebuilt_versions": {
         "cpu": "",
         "gpu": ""

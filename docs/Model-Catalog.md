@@ -54,7 +54,7 @@ All 29 models supported by jina-on-prem. Auto-generated from [`models/catalog.js
 
 | Model | Prebuilt | Params | VRAM | Context | Output | Modality | License |
 |---|---|---|---|---|---|---|---|
-| `jina-vlm` | [cpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-vlm) / [gpu](https://github.com/orgs/jina-ai/packages/container/package/jina-on-prem%2Fjina-vlm) | 2.4B | ~6GB | 32K | - | multimodal | CC-BY-NC-4.0 |
+| `jina-vlm` | - | 2.4B | ~6GB | 32K | - | multimodal | CC-BY-NC-4.0 |
 
 ## Picking a model
 
