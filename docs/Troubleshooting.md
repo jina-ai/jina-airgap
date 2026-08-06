@@ -103,7 +103,7 @@ docker pull --platform linux/amd64 ghcr.io/jina-ai/jina-on-prem/jina-embeddings-
 docker run --platform linux/amd64 -p 8080:8080 ghcr.io/jina-ai/jina-on-prem/jina-embeddings-v5-text-nano:cpu
 ```
 
-The flag is needed on both commands: `pull` chooses which image to fetch, `run` tells the daemon to emulate it. [`scripts/pull-prebuilt.sh`](https://github.com/jina-ai/jina-on-prem/blob/main/scripts/pull-prebuilt.sh) detects an arm64 daemon and adds the flag for you.
+The flag is needed on both commands: `pull` chooses which image to fetch, `run` tells the daemon to emulate it. [`scripts/pull-prebuilt.sh`](https://github.com/jina-ai/jina-on-prem/blob/main/scripts/pull-prebuilt.sh) handles this for you. It pulls without naming a platform first, so you get a native image whenever one exists, and only falls back to `linux/amd64` when the registry has nothing for your architecture.
 
 Emulated output is correct but the throughput is a fraction of native, so treat this as a way to try the API, not to measure it. For actual development on a Mac, skip Docker and run the server directly - `python jina-on-prem.py serve --model jinaai/jina-embeddings-v5-text-nano` uses native arm64 PyTorch.
 

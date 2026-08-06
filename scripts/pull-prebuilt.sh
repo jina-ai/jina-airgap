@@ -40,21 +40,7 @@ SRC="${REGISTRY}/${IMAGE}:${RUNTIME}"
 LOCAL_TAG="jina/${IMAGE}:${RUNTIME}"
 OUTPUT="${IMAGE}-${RUNTIME}.tar.gz"
 
-# Prebuilt images are published for linux/amd64 only, so an arm64 daemon (Apple Silicon,
-# arm servers) refuses the pull with "no matching manifest" until the platform is named.
-# Naming it gets the amd64 image and runs it under emulation, which works and is slow.
-# Ask the daemon, not `uname -m`: the shell's architecture is not docker's when the
-# context points at a VM or a remote host. Unquoted below on purpose - the empty case
-# has to expand to no argument at all, and the flag itself never contains a space.
-PLATFORM=""
-DAEMON_ARCH="$(docker version --format '{{.Server.Arch}}' 2>/dev/null || true)"
-if [[ "$DAEMON_ARCH" == "arm64" || "$DAEMON_ARCH" == "aarch64" ]]; then
-  PLATFORM="--platform linux/amd64"
-  echo "Docker daemon is $DAEMON_ARCH; prebuilts are linux/amd64, pulling that under emulation."
-fi
-
-echo "Pulling $SRC ..."
-if ! docker pull $PLATFORM "$SRC" 2>&1 | tee /tmp/pull-prebuilt.log; then
+fail_pull() {
   if grep -q "unauthorized\|denied" /tmp/pull-prebuilt.log; then
     cat >&2 <<EOF
 
@@ -68,18 +54,28 @@ Two things to check:
 Bundle it yourself if there is no prebuilt:
   python jina-on-prem.py bundle --model $MODEL
 EOF
-  elif grep -q "no matching manifest" /tmp/pull-prebuilt.log; then
-    cat >&2 <<EOF
-
-Pull failed because this host's architecture has no published image. Prebuilts are
-linux/amd64 only; retry naming the platform, which runs it under emulation:
-
-  docker pull --platform linux/amd64 $SRC
-
-EOF
   fi
   rm -f /tmp/pull-prebuilt.log
   exit 1
+}
+
+# The first attempt names no platform, so docker resolves this host's own architecture,
+# which is the right answer whenever an image for it exists. Only once the registry says
+# it has nothing for this host do we ask for amd64 and accept emulation. Deciding up front
+# from the host's architecture would be wrong in the other direction: it would keep forcing
+# emulation on an arm64 machine even after an arm64 image is published.
+#
+# $PLATFORM is unquoted below on purpose. The empty case has to expand to no argument at
+# all, and the flag itself never contains a space.
+PLATFORM=""
+
+echo "Pulling $SRC ..."
+if ! docker pull "$SRC" 2>&1 | tee /tmp/pull-prebuilt.log; then
+  grep -q "no matching manifest" /tmp/pull-prebuilt.log || fail_pull
+  echo
+  echo "No image is published for this host's architecture. Retrying as linux/amd64, which runs under emulation."
+  PLATFORM="--platform linux/amd64"
+  docker pull $PLATFORM "$SRC" 2>&1 | tee /tmp/pull-prebuilt.log || fail_pull
 fi
 rm -f /tmp/pull-prebuilt.log
 
@@ -102,8 +98,9 @@ echo "  docker run -p 8080:8080 $LOCAL_TAG"
 if [[ "$RUNTIME" == gpu* ]]; then
   echo "  # for GPU runtime: docker run --gpus all -p 8080:8080 $LOCAL_TAG"
 fi
-# The lines above are for the amd64 target host. Running the same image here needs the
-# flag again, because the daemon still has to be told to emulate.
+# The lines above are for the amd64 target host. $PLATFORM is only set when this host had
+# to fall back, and running the image here needs the flag again, because the daemon still
+# has to be told to emulate.
 if [[ -n "$PLATFORM" ]]; then
-  echo "  # to run it on this $DAEMON_ARCH host: docker run --platform linux/amd64 -p 8080:8080 $LOCAL_TAG"
+  echo "  # to run it on this machine: docker run --platform linux/amd64 -p 8080:8080 $LOCAL_TAG"
 fi

@@ -37,7 +37,7 @@ docker load < jina-embeddings-v5-text-nano-cpu.tar.gz
 docker run -p 8080:8080 jina/jina-embeddings-v5-text-nano:cpu
 ```
 
-> **On a Mac (Apple Silicon)?** Prebuilt images are `linux/amd64` only, so a plain `docker pull` fails with `no matching manifest for linux/arm64/v8`. `pull-prebuilt.sh` detects an arm64 daemon and handles it; if you pull by hand, add the flag to both commands: `docker pull --platform linux/amd64 ...` and `docker run --platform linux/amd64 ...`. It then runs under Rosetta emulation, correct but slow - fine for a first look, not for a benchmark. For real Mac development skip Docker entirely and use `python jina-on-prem.py serve`.
+> **On a Mac (Apple Silicon)?** Prebuilt images are `linux/amd64` only, so a plain `docker pull` fails with `no matching manifest for linux/arm64/v8`. `pull-prebuilt.sh` handles this for you, falling back to `linux/amd64` only when the registry has nothing for your architecture; if you pull by hand, add the flag to both commands: `docker pull --platform linux/amd64 ...` and `docker run --platform linux/amd64 ...`. It then runs under Rosetta emulation, correct but slow - fine for a first look, not for a benchmark. For real Mac development skip Docker entirely and use `python jina-on-prem.py serve`.
 
 ### Bundle from scratch
 
