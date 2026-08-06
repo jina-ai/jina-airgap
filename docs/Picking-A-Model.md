@@ -49,13 +49,13 @@ or v4 for biggest]
 
 ## Trade-offs
 
-**Bigger isn't always better.** v5-text-small is a stronger model than v5-text-nano, but the nano is 3x smaller and runs on CPU. For a customer with tight latency SLA and English-only data, nano often wins.
+**Bigger isn't always better.** v5-text-small is a stronger model than v5-text-nano, but the nano is 3x smaller and runs on CPU. With a tight latency budget and English-only data, nano often wins.
 
 **License model.** All v5/v4/v3 models are CC-BY-NC-4.0 — commercial use requires a license from Elastic. v2 and v1 models are Apache-2.0 and free for any use. To evaluate without a commercial license, or for deployments that require Apache-2.0, use `jina-embeddings-v2-base-en` (or `-zh`, `-de`, `-es`).
 
-**Multimodal models cost more memory.** A v5-omni-small needs ~8GB VRAM. A v5-text-nano needs 2GB. If the customer doesn't actually need image/audio/video, don't pay for it.
+**Multimodal models cost more memory.** A v5-omni-small needs ~8GB VRAM. A v5-text-nano needs 2GB. If you are not indexing image, audio or video, do not pay for the capability.
 
-**Matryoshka truncation lets you downsize at query time.** v5/v4/v3 support requesting any dim from 32 to the model's max (768 / 1024 / 2048). A customer can index at 1024-dim and query at 128-dim if they want a smaller index. Pass `dimensions: 128` in the request.
+**Matryoshka truncation lets you downsize at query time.** v5/v4/v3 support requesting any dim from 32 to the model's max (768 / 1024 / 2048). Index at 1024-dim and query at 128-dim if you want a smaller index. Pass `dimensions: 128` in the request.
 
 ## When to use multiple models
 
@@ -81,5 +81,5 @@ Both models can run side-by-side in two containers, OR you can deploy two replic
 ## Next
 
 - [Sizing & Hardware](Sizing-And-Hardware) - how much GPU/RAM/disk
-- [Model Catalog](Model-Catalog) - full specs for all 28
-- [Customer Scenarios](Customer-Scenarios) - deployment examples by use case
+- [Model Catalog](Model-Catalog) - full specs for all 29
+- [Deployment Patterns](Deployment-Patterns) - deployment examples by use case

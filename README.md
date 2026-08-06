@@ -79,7 +79,7 @@ Drops in via OpenAI SDK with `base_url="http://your-host:8080/v1"`.
 
 ## Models
 
-29 models supported: embeddings (v5, v4, v3, v2), rerankers, readers, ColBERT, CLIP, VLM. All 29 models have prebuilt images. Headline picks:
+29 models supported: embeddings (v5, v4, v3, v2), rerankers, readers, ColBERT, CLIP, VLM. 28 of them have prebuilt images; every model can be bundled from source. Headline picks:
 
 | Model | Type | Modality | Params | VRAM | Prebuilt |
 |---|---|---|---|---|---|
@@ -96,61 +96,60 @@ Full catalog with all 29 models, VRAM, context windows, and licenses: [Model Cat
 
 > CC-BY-NC-4.0 models require a commercial license for production use. Contact [Elastic sales](https://www.elastic.co/contact).
 
-## Maximum GPU throughput (`:gpu-opt`)
+## Concurrent GPU serving (`:gpu-opt`)
 
-The default `:gpu` server processes one request at a time on the event loop, so concurrent clients serialize (32 clients ≈ the throughput of 1). For high-QPS serving, the **`:gpu-opt`** tags (text embedding models) add a server-side **dynamic batcher** — a single GPU worker coalesces concurrent requests into length-sorted, token-budgeted batches, so clients can send one input at a time and still saturate the GPU:
+The default `:gpu` server runs one forward pass at a time, so concurrent clients queue behind each other. The **`:gpu-opt`** tags add a server-side **dynamic batcher**: one GPU worker coalesces concurrent requests into length-sorted, token-budgeted batches, so clients can send one input at a time and still keep the GPU busy.
 
-```bash
-docker run --gpus all -p 8080:8080 \
-  ghcr.io/jina-ai/jina-on-prem/jina-embeddings-v5-text-nano:gpu-opt   # or -small
-```
-
-Same weights and API as `:gpu`; **fp16** by default (matches the stock `:gpu` dtype — zero dtype-induced drift; per-vector cos-sim 0.9999981 vs fp32, batch-invariant). For best throughput clients should request `encoding_format: "base64"` — byte-identical output, far cheaper to serialize (the OpenAI SDK does this by default). Measured end-to-end over HTTP on a single L4 (base64):
-
-| traffic | `:gpu` | `:gpu-opt` |
-|---|---|---|
-| nano, 32 concurrent × 1 text | 1,267 tok/s | **14,550** (~11×) |
-| nano, 64 concurrent (mixed) | 3,000 tok/s | **27,341** (~9×) |
-| nano, bulk (4×128) | 16,134 tok/s | **36,415** (2.3×) |
-| small, 64 concurrent (mixed) | 1,231 tok/s | **8,738** (~7×) |
-
-This default is **multi-task** — every task (`retrieval`/`text-matching`/`clustering`/`classification`) returns correct embeddings, same as `:gpu`.
-
-**Maximum throughput (single task).** The same image also carries a full single-task stack on top of the batcher — LoRA `merge_and_unload`, `torch.compile` (`emulate_precision_casts`), and a lean tokenize-once pipeline. Merging fixes the model to one task, so it's opt-in via env rather than the default:
+Published for the 16 embedding models. Rerankers, ColBERT, reader and VLM models have `:cpu` and `:gpu` only:
 
 ```bash
 docker run --gpus all -p 8080:8080 \
-  -e JINA_MERGE_TASK=retrieval -e JINA_LEAN=1 -e JINA_COMPILE=default \
-  ghcr.io/jina-ai/jina-on-prem/jina-embeddings-v5-text-nano:gpu-opt
+  ghcr.io/jina-ai/jina-on-prem/jina-embeddings-v3:gpu-opt
 ```
 
-nano then reaches **95,428 tok/s on the lowest single L4** (`g2-standard-4`, 4 vCPU — 6.0× the stock `:gpu` server) and **102,195 on `g2-standard-8`**, err=0, per-vector cos-sim 0.9999988 vs fp32. Set `JINA_MERGE_TASK` to `text-matching`/`clustering`/`classification` for those tasks; 200K tok/s on a single L4 is past the chip's lossless ceiling, so use replicas for higher aggregate (see [Sizing & Hardware](https://github.com/jina-ai/jina-on-prem/wiki/Sizing-And-Hardware#gpu-dynamic-batching--the-gpu-opt-images)).
+Same weights, same API, same output as `:gpu` — verified per model, not assumed: on eight of the sixteen the vectors are identical to the last bit, and on the rest they agree to cosine ≥ 0.9998. Still **multi-task**: every task (`retrieval`/`text-matching`/`clustering`/`classification`) behaves as it does on `:gpu`. **fp16** by default, matching the stock `:gpu` dtype.
 
-Tunable via env (`JINA_BATCH_TOKENS`, `JINA_DTYPE`, `JINA_BATCH_WAIT_MS`, …) with optimal defaults baked in. Full benchmark, tuning, and replica guidance: [Sizing & Hardware → GPU dynamic batching](https://github.com/jina-ai/jina-on-prem/wiki/Sizing-And-Hardware#gpu-dynamic-batching--the-gpu-opt-images).
+Where the batcher earns its keep, and where it does not:
+
+- **Many clients sending one or a few inputs each** — this is the case it exists for.
+- **Few clients sending large `input` arrays** — no gain. The client is already batching, and `:gpu` is the simpler choice.
+
+Whichever image you run, ask for `encoding_format: "base64"` — same numbers, and up to **2.6× the throughput** on bulk requests, because a 768-dimension vector goes out as one string instead of 768 JSON floats. The OpenAI SDK does this by default. Tunable via `JINA_BATCH_TOKENS`, `JINA_BATCH_WAIT_MS` and `JINA_DTYPE`, with defaults baked in.
+
+Which image for which traffic, the measured `:gpu` / `:gpu-opt` comparison, and per-model image sizes: [Sizing & Hardware](https://github.com/jina-ai/jina-on-prem/wiki/Sizing-And-Hardware#gpu-dynamic-batching--the-gpu-opt-images).
 
 ## API at a glance
 
-The server speaks four schemas on the same port simultaneously:
+The server speaks five schemas on the same port simultaneously:
 
 ```bash
-# OpenAI / Voyage AI
+# Jina / OpenAI / Voyage AI
 curl http://localhost:8080/v1/embeddings \
   -H 'Content-Type: application/json' \
   -d '{"input": ["Hello world"]}'
 
 # Cohere
-curl http://localhost:8080/v1/embed -d '{"texts": ["hi"], "input_type": "search_query"}'
+curl http://localhost:8080/v2/embed \
+  -H 'Content-Type: application/json' \
+  -d '{"texts": ["hi"], "input_type": "search_query"}'
 
 # Google Gemini
 curl 'http://localhost:8080/v1/models/MODEL:embedContent' \
+  -H 'Content-Type: application/json' \
   -d '{"content": {"parts": [{"text": "hi"}]}, "taskType": "RETRIEVAL_QUERY"}'
 
 # Reranker
 curl http://localhost:8080/v1/rerank \
+  -H 'Content-Type: application/json' \
   -d '{"query": "best embedding model", "documents": ["..."], "top_n": 2}'
+
+# Reader / VLM models generate text instead of vectors
+curl http://localhost:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"messages": [{"role": "user", "content": "hi"}]}'
 ```
 
-Tasks (`retrieval`, `text-matching`, `classification`, ...), matryoshka truncation (`dimensions: 128`), and multimodal inputs (omni / clip / vlm models): see the [API Reference wiki](https://github.com/jina-ai/jina-on-prem/wiki/API-Reference).
+Tasks (`retrieval`, `text-matching`, `classification`, ...), matryoshka truncation (`dimensions: 128`), and multimodal inputs (omni / clip / v4 / vlm models): see the [API Reference wiki](https://github.com/jina-ai/jina-on-prem/wiki/API-Reference).
 
 Elasticsearch inference service drop-in: [Elasticsearch integration](https://github.com/jina-ai/jina-on-prem/wiki/API-Reference#elasticsearch-integration).
 
@@ -175,7 +174,7 @@ curl -s http://localhost:8080/health   # shows license status; /health always op
 - **No connection of its own**: the server opens nothing outbound on its own initiative. It will fetch an `http(s)` image or video URL when a *request* contains one - reachability is your network's decision, and `--network none` still serves every model. Only `http`/`https` and inline `data:` URLs are read, capped at 10 MB with an 8s budget
 - **Split Dockerfiles**: `Dockerfile.gpu` (pytorch base, CUDA, FP16) and `Dockerfile.cpu` (python:3.11-slim)
 - **Per-model pinned deps**: `catalog.json` `deps` field drives exact versions per model
-- **Multi-schema API**: OpenAI, Voyage AI, Cohere, Gemini - all active simultaneously
+- **Multi-schema API**: Jina, OpenAI, Voyage AI, Cohere, Gemini - all active simultaneously
 - **GPU auto-detect**: falls back to CPU if no CUDA available
 - **Matryoshka**: pass `dimensions` to truncate embeddings to any supported size
 
@@ -194,20 +193,19 @@ python jina-on-prem.py serve --local-path /data/models/jina-v5-nano
 jina-on-prem/
 - jina-on-prem.py             # CLI: bundle / deploy / serve / list
 - models/
-  - catalog.json           # 28-model registry with pinned deps
+  - catalog.json           # 29-model registry with pinned deps
 - docker/
   - Dockerfile.gpu         # GPU image (pytorch base, FP16)
   - Dockerfile.cpu         # CPU image (python:3.11-slim)
   - download_model.py      # Model download + patch script (build stage)
 - server/
-  - app.py                 # FastAPI server: 4 API schemas
+  - app.py                 # FastAPI server: 5 API schemas
   - requirements.txt       # Server framework deps
 - scripts/
   - bootstrap-gcp.sh       # one-shot GCP L4 builder provisioner
   - pull-prebuilt.sh       # pull GHCR image + save tar.gz for offline transport
-  - gen_catalog_md.py      # regenerate the Model Catalog wiki page
   - benchmark.py           # throughput benchmark
-- test_airgap.sh             # quick sanity check on a built image
+- verify-offline.sh          # prove an image serves with no network at all
 ```
 
 ## Documentation
@@ -215,7 +213,8 @@ jina-on-prem/
 - [Quick Start](https://github.com/jina-ai/jina-on-prem/wiki/Quick-Start) - 5-minute walkthrough with a prebuilt image
 - [Bundling Guide](https://github.com/jina-ai/jina-on-prem/wiki/Bundling-Guide) - build your own from a connected machine, GCP L4 walkthrough
 - [Model Catalog](https://github.com/jina-ai/jina-on-prem/wiki/Model-Catalog) - all 29 models with full metadata
-- [API Reference](https://github.com/jina-ai/jina-on-prem/wiki/API-Reference) - four schemas, multimodal inputs, tasks, ES integration
+- [API Reference](https://github.com/jina-ai/jina-on-prem/wiki/API-Reference) - five schemas, multimodal inputs, tasks, ES integration
 - [Troubleshooting](https://github.com/jina-ai/jina-on-prem/wiki/Troubleshooting) - common errors and the fixes that work
 - [Product & Model Lifecycle (EOL)](https://github.com/jina-ai/jina-on-prem/wiki/Product-And-Model-Lifecycle) - how long a deployed model is supported, and why models are maintained differently from software
-- [CONTRIBUTING.md](CONTRIBUTING.md) - build/test/push workflow for new bundles
+- [Security & Hardening](https://github.com/jina-ai/jina-on-prem/wiki/Security-And-Hardening) - network behaviour, authentication, and a hardening checklist
+- [Support](https://github.com/jina-ai/jina-on-prem/wiki/Support) - where to report a problem, and what not to put in a public tracker

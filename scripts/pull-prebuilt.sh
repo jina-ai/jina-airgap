@@ -8,30 +8,37 @@
 # Examples:
 #   ./scripts/pull-prebuilt.sh jina-embeddings-v5-text-nano        # default: cpu
 #   ./scripts/pull-prebuilt.sh jina-embeddings-v5-text-small gpu
+#   ./scripts/pull-prebuilt.sh jina-embeddings-v3 gpu-opt          # embedding models
 #
 # Output: MODEL-RUNTIME.tar.gz in the current directory.
 
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-  echo "usage: $0 MODEL [cpu|gpu]" >&2
+  echo "usage: $0 MODEL [cpu|gpu|gpu-opt]" >&2
   echo
   echo "List available prebuilt models in the README's 'Prebuilt' column." >&2
   exit 1
 fi
 
-MODEL="$1"
+MODEL="$1"        # catalog id, case preserved: find_model() matches it exactly
 RUNTIME="${2:-cpu}"
 
-if [[ "$RUNTIME" != "cpu" && "$RUNTIME" != "gpu" ]]; then
-  echo "error: RUNTIME must be 'cpu' or 'gpu' (got: $RUNTIME)" >&2
-  exit 1
-fi
+case "$RUNTIME" in
+  cpu|gpu|gpu-opt) ;;
+  *) echo "error: RUNTIME must be 'cpu', 'gpu' or 'gpu-opt' (got: $RUNTIME)" >&2; exit 1 ;;
+esac
+
+# Image names are lowercase-only and one catalog id is not (ReaderLM-v2), so it gets
+# `invalid repository name` from the registry rather than a pull. Lowercase into a
+# second variable: the messages below hand the reader a catalog id back, which has to
+# keep its case. `tr` and not `${MODEL,,}`, which needs bash 4 while macOS ships 3.2.
+IMAGE=$(printf '%s' "$MODEL" | tr '[:upper:]' '[:lower:]')
 
 REGISTRY="ghcr.io/jina-ai/jina-on-prem"
-SRC="${REGISTRY}/${MODEL}:${RUNTIME}"
-LOCAL_TAG="jina/${MODEL}:${RUNTIME}"
-OUTPUT="${MODEL}-${RUNTIME}.tar.gz"
+SRC="${REGISTRY}/${IMAGE}:${RUNTIME}"
+LOCAL_TAG="jina/${IMAGE}:${RUNTIME}"
+OUTPUT="${IMAGE}-${RUNTIME}.tar.gz"
 
 # Prebuilt images are published for linux/amd64 only, so an arm64 daemon (Apple Silicon,
 # arm servers) refuses the pull with "no matching manifest" until the platform is named.
@@ -51,14 +58,15 @@ if ! docker pull $PLATFORM "$SRC" 2>&1 | tee /tmp/pull-prebuilt.log; then
   if grep -q "unauthorized\|denied" /tmp/pull-prebuilt.log; then
     cat >&2 <<EOF
 
-Pull failed with unauthorized/denied. GHCR requires authentication.
+Pull failed with unauthorized/denied. Published images pull anonymously, so this
+means no image exists at $SRC rather than that you need to log in.
 
-Login first:
-  echo YOUR_GH_TOKEN | docker login ghcr.io -u YOUR_GH_USERNAME --password-stdin
+Two things to check:
+  - the Prebuilt column of the Model Catalog, for whether this model has one
+  - the runtime: gpu-opt is published for the embedding models only
 
-Create a token at https://github.com/settings/tokens/new?scopes=read:packages
-
-If you use sudo, run docker login as both user and root (separate credential stores).
+Bundle it yourself if there is no prebuilt:
+  python jina-on-prem.py bundle --model $MODEL
 EOF
   elif grep -q "no matching manifest" /tmp/pull-prebuilt.log; then
     cat >&2 <<EOF
@@ -91,7 +99,7 @@ echo "  docker run -p 8080:8080 $LOCAL_TAG"
 # `[[ ... ]] && echo` as the last line of a `set -e` script exits 1 whenever the test is
 # false, which reported a clean cpu pull as a failure. These are hints, so they end in an
 # `if` and the script exits on the status of the work it actually did.
-if [[ "$RUNTIME" == "gpu" ]]; then
+if [[ "$RUNTIME" == gpu* ]]; then
   echo "  # for GPU runtime: docker run --gpus all -p 8080:8080 $LOCAL_TAG"
 fi
 # The lines above are for the amd64 target host. Running the same image here needs the

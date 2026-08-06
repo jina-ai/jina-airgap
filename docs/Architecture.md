@@ -74,12 +74,14 @@ Critical detail: **the model's own `requirements.txt`** (shipped in some HF repo
 ```
    client                        endpoint
    ────────────────────────────────────────────────────────────────
-   OpenAI SDK             ──►  POST /v1/embeddings           ┐
-   Voyage SDK             ──►  POST /v1/embeddings (...)     │
-   Cohere SDK             ──►  POST /v1/embed                ├──►  FastAPI server
+   Jina API client        ──►  POST /v1/embeddings           ┐
+   OpenAI SDK             ──►  POST /v1/embeddings           │
+   Voyage SDK             ──►  POST /v1/multimodalembeddings │
+   Cohere SDK             ──►  POST /v2/embed                ├──►  FastAPI server
    Google AI SDK          ──►  POST /v1/models/X:embedContent│         │
-   reranker client        ──►  POST /v1/rerank               │         ▼
-   ES inference           ──►  service: openai | cohere      ┘   model.encode()
+   reranker client        ──►  POST /v1/rerank, /v2/rerank   │         ▼
+   reader / VLM client    ──►  POST /v1/chat/completions     │   model.encode()
+   ES inference           ──►  service: openai | cohere      ┘
                                                                        │
    GET /health  (status, schemas, multimodal flag)                     ▼
                                                               schema-specific
@@ -89,7 +91,7 @@ Critical detail: **the model's own `requirements.txt`** (shipped in some HF repo
                                                                    reply
 ```
 
-One container, four protocols. The shape adapter is the only schema-aware code; the encode call is shared.
+One container, five protocols. Every schema's router is mounted in every container; which endpoints return a result depends on the model it loaded. The shape adapter is the only schema-aware code; the encode call is shared.
 
 ## How weights stay private
 
@@ -143,16 +145,14 @@ jina-on-prem/
   - Dockerfile.gpu           two-stage with CUDA + cudnn
   - download_model.py        runs in stage 1, downloads + patches
 - server/
-  - app.py                   FastAPI with 4 schemas + /v1/rerank
+  - app.py                   FastAPI app, mounts every schema's router
   - requirements.txt         server framework deps
 - scripts/
   - bootstrap-gcp.sh         provision a builder
   - pull-prebuilt.sh         pull GHCR image and tar.gz it
-  - gen_catalog_md.py        regenerate the Model Catalog wiki page
-  - sync-wiki.sh             push docs/ to the wiki
   - benchmark.py             throughput micro-benchmark
-- docs/                      mirror of this wiki, edited via PRs
-- test_airgap.sh             quick smoke test for a built image
+- docs/                      the source of these wiki pages
+- verify-offline.sh          prove an image serves with no network at all
 ```
 
 ## What's intentionally NOT in scope

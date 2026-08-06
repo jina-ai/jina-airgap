@@ -1,4 +1,4 @@
-If you hit something not listed here, please [open an issue](https://github.com/jina-ai/jina-on-prem/issues/new) with the full error and `docker logs <container>` output.
+If you hit something not listed here, [Support](Support) covers where to report it and what to include - including what not to put in a public tracker.
 
 ```mermaid
 flowchart TD
@@ -20,7 +20,7 @@ unexpected shape
 empty result]
 ```
 
-Jump to a section: [Docker / install](#docker-permission-denied) - [L4 stockout](#l4-stockout) - [CUDA mismatch](#cuda-mismatch) - [OOM](#out-of-memory-on-gpu) - [Transformers version pins](#transformers-version-pins) - [GHCR auth](#prebuilt-pull-unauthorized) - [Wrong endpoint](#wrong-endpoint-returns-500) - [Network=none](#dont-use---networknone-for-air-gap-testing) - [Disk full](#disk-full-during-multi-model-build) - [Flash-attn build](#bundle-build-fails-on-flash-attn-compile) - [Spot preemption](#spot-instance-preempted-mid-build) - [Pushed image not visible](#oci-labels-missing-on-pushed-images) - [Reranker NaN](#empty--nan-embeddings-on-qwen3-reranker)
+Jump to a section: [Docker / install](#docker-permission-denied) - [L4 stockout](#l4-stockout) - [CUDA mismatch](#cuda-mismatch) - [OOM](#out-of-memory-on-gpu) - [Transformers version pins](#transformers-version-pins) - [GHCR auth](#prebuilt-pull-unauthorized) - [Wrong endpoint](#wrong-endpoint-returns-500) - [Verifying the air gap](#verifying-the-air-gap) - [Disk full](#disk-full-during-multi-model-build) - [Flash-attn build](#bundle-build-fails-on-flash-attn-compile) - [Spot preemption](#spot-instance-preempted-mid-build) - [Pushed image not visible](#oci-labels-missing-on-pushed-images) - [Reranker NaN](#empty--nan-embeddings-on-qwen3-reranker)
 
 ## Docker permission denied
 
@@ -76,15 +76,15 @@ A retry loop is at the bottom of [`scripts/bootstrap-gcp.sh`](https://github.com
 Error response from daemon: error from registry: unauthorized
 ```
 
-**Cause**: GHCR images live under `ghcr.io/jina-ai/jina-on-prem/*` and require a logged-in user.
+**Cause**: published images pull anonymously, so this is not a credentials problem — nothing is published at the name you asked for. Either the model has no prebuilt image, or the runtime tag does not exist for it (`gpu-opt` is published for the embedding models only).
 
-**Fix**: docker login with a GitHub PAT that has `read:packages` scope:
+**Fix**: check the Prebuilt column of the [Model Catalog](Model-Catalog) for that model, and bundle it yourself if there is none:
 
 ```bash
-echo "ghp_..." | docker login ghcr.io -u YOUR_GH_USERNAME --password-stdin
+python jina-on-prem.py bundle --model MODEL
 ```
 
-If using `sudo docker pull`, run `sudo docker login` first (root and user have separate credentials).
+The catalog ids are not all lowercase but registry names must be, so pull `readerlm-v2`, not `ReaderLM-v2`. [`scripts/pull-prebuilt.sh`](https://github.com/jina-ai/jina-on-prem/blob/main/scripts/pull-prebuilt.sh) and `jina-on-prem.py` handle the case for you.
 
 ## No matching manifest on Apple Silicon
 
@@ -135,13 +135,13 @@ If `<525`, either update the driver or use the CPU image (`:cpu` tag) which has 
 
 **Cause**: model needs a specific transformers version. Each model's `deps` block in `models/catalog.json` pins it; the Docker image installs exactly that. If you `serve` outside Docker you must mirror the pins.
 
-| Model family | transformers | Why |
-|---|---|---|
-| v5-text-nano, v5-text-small | `==4.51.0` | needs `Qwen3Config` (added in 4.51) |
-| v5-omni-nano, v5-omni-small | `==4.57.0` | needs `Qwen3VLVisionConfig` (added in 4.57) |
-| v3 | `==4.48.3` | older base, no qwen3 dependency |
-| reranker-v3 | `==4.51.0` | based on Qwen3 |
-| reranker-v3.5 | `==4.57.3` | Qwen3 with hybrid sliding-window attention; needs `layer_types` (added in 4.55) |
+**Fix**: read the pin out of the catalog, which is the same file the image was built from:
+
+```bash
+python jina-on-prem.py list --json | jq -r '.[] | "\(.id)\t\(.deps.transformers)"'
+```
+
+The pins span six transformers versions across the catalog and are exact on purpose: each model needs a config class or attention implementation from one specific release, and several of them fail on both older and newer ones. Two models pin `==4.57.0`, which is yanked on PyPI; an exact pin still installs a yanked release, which is why they pin the version rather than a range.
 
 > The bundle phase deletes each model repo's own `requirements.txt` after download. This prevents runtime auto-upgrade by `trust_remote_code` paths that would otherwise call `pip install -r requirements.txt`.
 
@@ -151,7 +151,7 @@ If `<525`, either update the driver or use the CPU image (`:cpu` tag) which has 
 
 **Cause**: transformers 4.57.3 sniffs base-mistral tokenizers by calling `huggingface_hub.model_info()` whenever a tokenizer is loaded by repo id instead of by path. The reranker's own `rerank()` re-loads its tokenizer by name, so the probe fires; in an air-gapped container it cannot complete.
 
-**Fix**: none needed with the official images - the server disables the probe when `HF_HUB_OFFLINE=1` or `TRANSFORMERS_OFFLINE=1` is set. If you run `serve` outside Docker, **set one of those variables**, otherwise the bypass stays inactive and you will hit the error.
+**Fix**: none needed with the official images - the reranker pins `transformers==4.57.1`, which does not carry the probe. You reach this error by installing 4.57.3 yourself and running `serve` outside Docker; pin `==4.57.1` there too.
 
 Only 4.57.3 is affected. Verified on `jina-reranker-v3.5`, loading by repo id with `HF_HUB_OFFLINE=1`:
 
@@ -184,17 +184,23 @@ model = CrossEncoder(...)  # NOT SentenceTransformer
 model.tokenizer.pad_token = model.tokenizer.eos_token
 ```
 
-## Don't use `--network=none` for "air-gap testing"
+## Verifying the air gap
 
-**Symptom**: testing with `docker run --network=none ...` and the host can't reach `localhost:8080`.
+**Symptom**: testing with `docker run --network none -p 8080:8080 ...` and the host can't reach `localhost:8080`.
 
-**Cause**: `--network=none` removes the container's network namespace entirely. The `-p 8080:8080` port mapping silently does nothing because there's no container IP to forward to.
+**Cause**: `--network none` gives the container a network namespace with nothing in it but loopback — no interface, no address. There is nothing for `-p` to forward to, so the mapping never comes up.
 
-> Older CLI versions printed a "Air-gap verification" hint that used `--network=none`. Don't follow it - the suggestion has been removed in current builds.
+**Fix**: reach the server over the container's own loopback instead of through a published port:
 
-**The real air-gap guarantee** is that `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` are baked into the image, so any code path that would download a weight fails immediately. Run normally with `-p 8080:8080` and trust the env vars.
+```bash
+docker run --rm -d --name airgap-check --network none jina/MODEL:cpu
+docker exec airgap-check python -c \
+  "import urllib.request;print(urllib.request.urlopen('http://127.0.0.1:8080/health').read())"
+```
 
-To prove it's offline: run on a host with no egress route, watch `docker logs <container>`. Nothing should be trying to fetch anything.
+This is how [`verify-offline.sh`](https://github.com/jina-ai/jina-on-prem/blob/main/verify-offline.sh) verifies an image, and it is the stronger test: `--network none` makes egress impossible at the kernel level, where `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` only stop the code paths that honour them. The same script then proves the container cannot reach out, by checking that a socket to huggingface.co and to a raw IP both fail from inside.
+
+Use `-p 8080:8080` for the deployment you actually run, and `--network none` plus `docker exec` when the question is whether it needs a network at all.
 
 ## Bundle build fails on `flash-attn` compile
 
@@ -249,4 +255,4 @@ Please [file an issue](https://github.com/jina-ai/jina-on-prem/issues/new) with:
 - `docker logs <container>` if a container started but failed
 - Last 50 lines of bundle log if a build failed
 
-The [CONTRIBUTING.md](https://github.com/jina-ai/jina-on-prem/blob/main/CONTRIBUTING.md) has more debug history from the maintainers' perspective.
+Where to send it, and what not to put in a public tracker: [Support](Support).

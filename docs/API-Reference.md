@@ -1,14 +1,16 @@
-A deployed jina-on-prem server exposes four embedding API schemas (and a reranker endpoint) on the same port. Pick whichever your client already speaks - they all hit the same model.
+A deployed jina-on-prem server exposes five API schemas on the same port. Pick whichever your client already speaks - they all hit the same model.
 
 ```
    client                        endpoint
    ────────────────────────────────────────────────────────────────
-   OpenAI SDK             ──►  POST /v1/embeddings           ┐
-   Voyage SDK             ──►  POST /v1/embeddings (...)     │
-   Cohere SDK             ──►  POST /v1/embed                ├──►  FastAPI server
+   Jina API client        ──►  POST /v1/embeddings           ┐
+   OpenAI SDK             ──►  POST /v1/embeddings           │
+   Voyage SDK             ──►  POST /v1/multimodalembeddings │
+   Cohere SDK             ──►  POST /v2/embed                ├──►  FastAPI server
    Google AI SDK          ──►  POST /v1/models/X:embedContent│         │
-   reranker client        ──►  POST /v1/rerank               │         ▼
-   ES inference           ──►  service: openai | cohere      ┘   model.encode()
+   reranker client        ──►  POST /v1/rerank, /v2/rerank   │         ▼
+   reader / VLM client    ──►  POST /v1/chat/completions     │   model.encode()
+   ES inference           ──►  service: openai | cohere      ┘
                                                                        │
    GET /health  (status, schemas, multimodal flag)                     ▼
                                                               schema-specific
@@ -20,14 +22,16 @@ A deployed jina-on-prem server exposes four embedding API schemas (and a reranke
 
 | Schema | Endpoint | Drop-in for |
 |---|---|---|
+| Jina | `POST /v1/embeddings`, `POST /v1/rerank` | the hosted Jina API, byte-compatible |
 | OpenAI | `POST /v1/embeddings` | OpenAI SDK, Elasticsearch inference, LlamaIndex, LangChain |
-| Voyage AI | `POST /v1/embeddings` (with `input_type` / `output_dimension`) | Voyage SDK |
-| Cohere | `POST /v1/embed` | Cohere SDK |
+| Voyage AI | `POST /v1/embeddings` (with `input_type` / `output_dimension`), `POST /v1/multimodalembeddings` | Voyage SDK |
+| Cohere | `POST /v2/embed`, `POST /v2/rerank` | Cohere SDK |
 | Google Gemini | `POST /v1/models/{model}:embedContent`, `:batchEmbedContents` | Google AI SDK |
-| Reranker | `POST /v1/rerank` | Cohere reranker SDK |
 | Utility | `GET /health` | health checks |
 
-![api-schemas](images/04-schemas.gif)
+The Cohere schema is served on its v2 paths, which is what a current Cohere SDK calls.
+
+The reader and VLM models serve `POST /v1/chat/completions` instead of an embedding endpoint - they generate text. Each model's `api_endpoint` field in the catalog says which endpoint it answers on, and so does `GET /health`.
 
 ## Health
 
@@ -75,12 +79,12 @@ curl -s http://localhost:8080/v1/embeddings \
 ## Cohere
 
 ```bash
-curl -s http://localhost:8080/v1/embed \
+curl -s http://localhost:8080/v2/embed \
   -H 'Content-Type: application/json' \
   -d '{"texts": ["Hello world"], "input_type": "search_query"}'
 ```
 
-Response shape (matches Cohere's `/v1/embed`):
+Response shape (matches Cohere's `/v2/embed`):
 ```json
 {
   "id": "...",
@@ -146,7 +150,7 @@ Response (Cohere-compatible):
 }
 ```
 
-> Reranker containers expose `/v1/rerank` only - calling `/v1/embeddings` on a reranker returns HTTP 500.
+> Every container mounts all five schemas, but only the ones its model can serve return a result: a reranker answers `/v1/rerank` and `/v2/rerank`, and returns HTTP 500 on `/v1/embeddings`. Run one container per role.
 
 ## Multimodal inputs (omni / clip / v4 / vlm)
 

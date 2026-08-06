@@ -35,15 +35,15 @@ text and image]:::rec
 
 ## Scenario A - Offline semantic search in Elasticsearch
 
-**Customer**: a bank with an on-prem ES cluster, indexing internal research notes. No outbound internet.
+**Situation**: a bank with an on-prem ES cluster, indexing internal research notes. No outbound internet.
 
-**Recommend**: `jina-embeddings-v5-text-small` (multilingual, 1024-dim) for indexing + `jina-reranker-v3.5` for top-K reranking. Both fit on a single L4.
+**Use**: `jina-embeddings-v5-text-small` (multilingual, 1024-dim) for indexing + `jina-reranker-v3.5` for top-K reranking. Both fit on a single L4.
 
 **Hardware**: 1x NVIDIA L4 (24GB VRAM) per host, 100GB disk for both bundles + cache. Two replicas behind a load balancer if QPS > 50.
 
 **Deploy**:
 1. On a connected machine, run `./scripts/pull-prebuilt.sh jina-embeddings-v5-text-small gpu` and `./scripts/pull-prebuilt.sh jina-reranker-v3.5 gpu`. Output: two `.tar.gz` files.
-2. Transfer both to the air-gapped host (SCP, USB, or whatever the bank's change-control allows).
+2. Transfer both to the target host (SCP, USB, or whatever your change-control process allows).
 3. `docker load < ...` and `docker run --gpus all -p 8080:8080 ...` for each on different ports.
 4. Wire ES inference service to both:
 
@@ -67,9 +67,9 @@ PUT _inference/rerank/jina-rerank
 
 ## Scenario B - Drop-in replacement for OpenAI embeddings
 
-**Customer**: a SaaS company whose paying customers refuse to send their data to OpenAI.
+**Situation**: a SaaS company whose paying customers refuse to send their data to OpenAI.
 
-**Recommend**: `jina-embeddings-v5-text-nano` (CPU-friendly, 768-dim). The smallest model that's still a credible quality replacement.
+**Use**: `jina-embeddings-v5-text-nano` (CPU-friendly, 768-dim). The smallest model that's still a credible quality replacement.
 
 **Hardware**: CPU is fine for < 100 QPS - 4 vCPU + 4GB RAM. Add a GPU only if latency is critical.
 
@@ -90,9 +90,9 @@ That's it. No application code change beyond `base_url`.
 
 ## Scenario C - Multilingual support across 89 languages
 
-**Customer**: a global support-ticket triage system that must work in English, German, Spanish, Chinese, Japanese, Arabic.
+**Situation**: a global support-ticket triage system that must work in English, German, Spanish, Chinese, Japanese, Arabic.
 
-**Recommend**: `jina-embeddings-v5-text-small`. Trained on 89 languages with task-aware routing.
+**Use**: `jina-embeddings-v5-text-small`. Trained on 89 languages with task-aware routing.
 
 **Sizing**: ~3GB VRAM, fits anywhere. L4 or T4 if GPU.
 
@@ -100,9 +100,9 @@ That's it. No application code change beyond `base_url`.
 
 ## Scenario D - Image and text search
 
-**Customer**: a fashion retailer that wants visual + text search ("red dress like this image, but in cotton").
+**Situation**: a fashion retailer that wants visual + text search ("red dress like this image, but in cotton").
 
-**Recommend**: `jina-clip-v2` (multimodal embeddings, text and image in the same space).
+**Use**: `jina-clip-v2` (multimodal embeddings, text and image in the same space).
 
 **Hardware**: ~4GB VRAM. L4 minimum if you want < 100ms image embedding.
 
@@ -121,9 +121,9 @@ Image must be base64-encoded inline (no URLs - the air-gap forbids outbound fetc
 
 ## Scenario E - Code search
 
-**Customer**: dev tools company indexing 10M code files for repo search.
+**Situation**: dev tools company indexing 10M code files for repo search.
 
-**Recommend**: `jina-code-embeddings-1.5b` (code-aware, 1536-dim) or `0.5b` for lighter deploys.
+**Use**: `jina-code-embeddings-1.5b` (code-aware, 1536-dim) or `0.5b` for lighter deploys.
 
 **Hardware**: 1.5b needs ~4GB VRAM. 0.5b runs on CPU for low-volume.
 
@@ -131,9 +131,9 @@ Image must be base64-encoded inline (no URLs - the air-gap forbids outbound fetc
 
 ## Scenario F - Better reranking on top of existing retrieval
 
-**Customer**: already has a retrieval pipeline (BM25 or any embedding model), wants to add a strong reranker.
+**Situation**: already has a retrieval pipeline (BM25 or any embedding model), wants to add a strong reranker.
 
-**Recommend**: `jina-reranker-v3.5` (131K context, multilingual, top-quality).
+**Use**: `jina-reranker-v3.5` (131K context, multilingual, top-quality).
 
 **Hardware**: ~3GB VRAM on the `:gpu` image. The `:cpu` image is bounded by host
 RAM rather than by top-K alone, because the whole request goes through one
@@ -156,9 +156,9 @@ curl http://rerank-host:8080/v1/rerank \
 
 ## Scenario G - Hospital with HIPAA + sovereign data
 
-**Customer**: hospital with patient records, must run in their data center, no AI vendor allowed.
+**Situation**: hospital with patient records, must run in their data center, no AI vendor allowed.
 
-**Recommend**: `jina-embeddings-v5-text-nano` or `text-small`. The smallest workable model lowers the audit/security review burden.
+**Use**: `jina-embeddings-v5-text-nano` or `text-small`. The smallest workable model lowers the audit/security review burden.
 
 **Security properties for compliance review**:
 - Model weights and dependencies run on the deployment host. No data or queries leave the environment.
@@ -167,7 +167,7 @@ curl http://rerank-host:8080/v1/rerank \
 - No license server, no phone-home, no telemetry.
 - Source code is on GitHub (Apache-2.0 for the CLI) and is auditable.
 
-See [Why Air-Gap -> What "air-gap" means in this project](Why-Airgap#what-air-gap-means-in-this-project) for a full technical breakdown suitable for security questionnaires.
+The full set, with the network behaviour and a hardening checklist, is in [Security & Hardening](Security-And-Hardening).
 
 ## Next
 

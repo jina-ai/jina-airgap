@@ -1,8 +1,8 @@
-**Deploy Jina AI's embedding, reranker, and reader models inside customer environments that cannot reach the internet.**
+**Run Jina AI's embedding, reranker and reader models on your own infrastructure, with no outbound network calls.**
 
 ![bundle flow](images/pixel-bundle-flow.png)
 
-For first-time deployments, start with **[Why Air-Gap](Why-Airgap)**, then **[Quick Start](Quick-Start)**. For developers integrating the API into an application, start with **[API Reference](API-Reference)**.
+For first-time deployments, start with **[Why On-Prem](Why-On-Prem)**, then **[Quick Start](Quick-Start)**. For developers integrating the API into an application, start with **[API Reference](API-Reference)**.
 
 ## At a glance
 
@@ -30,7 +30,7 @@ That's the whole product. The connected machine has internet to fetch model weig
 ## What's supported
 
 - **29 models**: Jina embeddings (v5, v4, v3, v2), rerankers, ColBERT, CLIP, ReaderLM, VLM. See [Model Catalog](Model-Catalog).
-- **4 API schemas simultaneously**: OpenAI, Cohere, Google Gemini, Voyage AI - drop-in for any client.
+- **5 API schemas simultaneously**: Jina, OpenAI, Cohere, Google Gemini, Voyage AI - drop-in for any client.
 - **Multimodal**: text + image + audio + video on omni/clip/v4 models.
 - **GPU and CPU**: same model can be packaged either way.
 - **Elasticsearch inference service**: works as a `service: openai` endpoint out of the box.
@@ -39,13 +39,13 @@ That's the whole product. The connected machine has internet to fetch model weig
 
 | You are... | Start here |
 |---|---|
-| Evaluating jina-on-prem for a deployment | [Why Air-Gap](Why-Airgap), then [Customer Scenarios](Customer-Scenarios) |
+| Evaluating jina-on-prem | [Why On-Prem](Why-On-Prem), then [Deployment Patterns](Deployment-Patterns) |
 | Comparing this against Ollama / vLLM / ONNX / hosted API | [Comparison vs alternatives](Comparison) |
-| A field engineer deploying at a customer site | [Quick Start](Quick-Start), then [Sizing & Hardware](Sizing-And-Hardware) |
 | A developer integrating the API | [API Reference](API-Reference) |
 | Building a new bundle from scratch | [Bundling Guide](Bundling-Guide) |
 | Rolling out a new model version | [Versioning & Updates](Versioning-And-Updates) |
-| Hitting an error | [Troubleshooting](Troubleshooting), [FAQ](FAQ) |
+| Reviewing this for security or compliance | [Security & Hardening](Security-And-Hardening) |
+| Hitting an error | [Troubleshooting](Troubleshooting), then [Support](Support) |
 
 ## License note
 

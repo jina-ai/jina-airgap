@@ -135,7 +135,7 @@ rm jina-OLDMODEL-*.tar.gz     # remove tars you've already transferred
 df -h /                       # confirm
 ```
 
-The [`CONTRIBUTING.md` batch-build pattern](https://github.com/jina-ai/jina-on-prem/blob/main/CONTRIBUTING.md#batch-build-all-6-priority-models) iterates this for all 6 priority models on a single host.
+The same loop bundles several models on one host - each build is independent, so a failure part-way leaves the earlier bundles intact.
 
 ## Transfer to the air-gapped machine
 
@@ -148,7 +148,7 @@ The `.tar.gz` is one self-contained file. Move it however your policy allows:
 | Object storage (S3, GCS) | if the air-gapped side can reach it |
 | USB / removable disk | true air-gap, sneakernet |
 | Optical media (DVD, BD-R) | maximum-security customer DC |
-| Whatever Change Management approves | most regulated customers have a fixed channel |
+| Whatever your change-management process approves | regulated environments usually have a fixed channel |
 
 On the target host:
 
@@ -166,8 +166,7 @@ That's the entire air-gapped deploy. The image has `HF_HUB_OFFLINE=1` and `TRANS
 - Reranker models load as `CrossEncoder`, not `SentenceTransformer`. Handled in the server, relevant only if you `serve` directly.
 - v5-omni models need ~30 GB free disk during build (large base + flash-attn compile).
 - The bundle deletes each model repo's `requirements.txt` to prevent runtime auto-upgrade. This is intentional.
-
-Full debug history: [CONTRIBUTING.md "Known Caveats"](https://github.com/jina-ai/jina-on-prem/blob/main/CONTRIBUTING.md#known-caveats-from-hard-won-debugging).
+- A GPU bundle can run for the better part of an hour, so run it under `nohup` or `tmux`. On a preemptible or spot instance it will otherwise die with your session. Docker images survive a reboot; `/tmp` does not, so write build logs somewhere persistent.
 
 ## Next
 

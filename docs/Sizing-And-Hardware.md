@@ -85,13 +85,67 @@ flowchart LR
 how many models]
 ```
 
-- **Builder machine**: 100 GB minimum if bundling 1-2 models. 200 GB+ if bundling all 6 priority models. Each build holds: built image (2-12 GB) + tar.gz (1-7 GB) + Docker BuildKit cache (up to 20 GB).
-- **Air-gapped host**: needs ~2x the image size at runtime (image + Docker layer cache). For a 4 GB image, plan 10 GB disk.
+- **Builder machine**: 100 GB minimum if bundling 1-2 models. Each build holds: built image (2-12 GB) + tar.gz (1-7 GB) + Docker BuildKit cache (up to 20 GB). Bundling the whole catalog needs a different order of magnitude — the 74 published images total 509 GB.
+- **Target host**: needs ~2x the image size at runtime (image + Docker layer cache). For a 4 GB image, plan 10 GB disk.
 - **Reclaim**: `docker builder prune -af` between bundles. `docker system prune -f` after.
+
+### Published image sizes
+
+Compressed size of every published image — what you download, and close to what `docker save | gzip` produces for offline transport. On disk after `docker pull` or `docker load` it expands, so size the target host off `docker images`, not off this table.
+
+`:gpu-opt` is the `:gpu` image with the batcher enabled, byte for byte the same size, so it is not listed separately.
+
+| Model | cpu GB | gpu GB | | Model | cpu GB | gpu GB |
+|---|---|---|---|---|---|---|
+| `jina-embeddings-v5-text-nano` | 0.8 | 7.1 | | `jina-reranker-v3.5` | 1.2 | 7.5 |
+| `jina-embeddings-v5-text-small` | 1.4 | 7.7 | | `jina-reranker-v3` | 1.3 | 7.8 |
+| `jina-embeddings-v5-omni-nano` | 2.0 | 8.5 | | `jina-reranker-m0` | 3.9 | 10.2 |
+| `jina-embeddings-v5-omni-small` | 3.0 | 9.5 | | `jina-reranker-v2-base-multilingual` | 3.2 | 9.5 |
+| `jina-embeddings-v4` | 6.2 | 12.5 | | `jina-reranker-v1-base-en` | 0.7 | 7.0 |
+| `jina-embeddings-v3` | 3.8 | 10.1 | | `jina-reranker-v1-turbo-en` | 0.8 | 7.1 |
+| `jina-clip-v2` | 13.8 | 20.1 | | `jina-reranker-v1-tiny-en` | 0.7 | 7.0 |
+| `jina-clip-v1` | 3.8 | 10.1 | | `jina-colbert-v2` | 2.2 | 12.4 |
+| `jina-code-embeddings-1.5b` | 2.6 | 9.0 | | `jina-colbert-v1-en` | 1.0 | 11.1 |
+| `jina-code-embeddings-0.5b` | 1.1 | 7.4 | | `ReaderLM-v2` | 13.3 | 19.8 |
+| `jina-embeddings-v2-base-en` | 1.8 | 8.1 | | `reader-lm-1.5b` | 2.6 | 9.2 |
+| `jina-embeddings-v2-base-de` | 1.7 | 8.0 | | `reader-lm-0.5b` | 1.1 | 7.6 |
+| `jina-embeddings-v2-base-es` | 1.4 | 7.7 | | `jina-vlm` | 4.5 | 10.8 |
+| `jina-embeddings-v2-base-zh` | 1.7 | 8.0 | | | | |
+| `jina-embeddings-v2-base-code` | 1.7 | 8.0 | | | | |
+| `jina-embedding-b-en-v1` | 0.8 | 7.1 | | | | |
+
+Two things to notice before planning disk or a USB transfer. The smallest GPU image is 7.0 GB against 0.7 GB for the same model on CPU, because a GPU image carries the CUDA runtime — call it 6 GB of fixed cost on every GPU row, which is why picking a smaller model saves far less on GPU than on CPU. And `jina-clip-v2` and `ReaderLM-v2` are the outliers at 13-14 GB even on CPU; every other CPU image fits in 6.2 GB.
+
+## Ask for `base64` embeddings
+
+Before any hardware decision, check how your client asks for its vectors. A 768-dimension embedding comes back either as 768 JSON numbers or as one base64 string, and at 128 inputs per request that is 98,304 floats to render into text. On bulk requests the rendering costs more than the inference.
+
+Same server, same image, same GPU, same inputs — only the requested `encoding_format`:
+
+| shape (concurrency x inputs) | float tok/s | base64 tok/s | ratio |
+|---|---|---|---|
+| 1 x 1 | 603 | 616 | 1.02 |
+| 8 x 1 | 2,152 | 2,128 | 0.99 |
+| 32 x 1 | 4,657 | 5,834 | 1.25 |
+| 64 x 1 | 4,266 | 5,265 | 1.23 |
+| 8 x 32 | 11,649 | **27,536** | **2.36** |
+| 4 x 128 | 12,358 | **32,118** | **2.60** |
+
+`jina-embeddings-v5-text-nano` on one L4, 4 rounds per cell, end to end over HTTP. The first two rows are inside run-to-run noise; the bulk rows are the result.
+
+The GPU did identical work in both columns — batch rows per forward pass were unchanged, so the entire difference is serialisation. The vectors are the same numbers: decode the base64 back to float32 and it matches the float response element for element, not approximately.
+
+The OpenAI SDK requests base64 by default, so a client built on it already gets this. Raw HTTP clients have to ask:
+
+```bash
+curl -s http://localhost:8080/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"input": ["..."], "encoding_format": "base64"}'
+```
 
 ## Throughput math
 
-Rough throughput on a single L4, batch size 32:
+Rough throughput on a single L4, batch size 32, measured through `SentenceTransformer.encode()` rather than over HTTP — so it excludes the serialisation cost above and reads high against a float-encoded API call:
 
 | Model | Tokens/s | Documents/s (avg 50 tokens) |
 |---|---|---|
@@ -99,7 +153,7 @@ Rough throughput on a single L4, batch size 32:
 | v5-text-small | ~12,000 | ~240 |
 | v5-omni-small (text only) | ~6,000 | ~120 |
 
-(Measure on the customer hardware. These are starting estimates from `scripts/benchmark.py`.)
+(Starting estimates from `scripts/benchmark.py`. Measure on your own hardware.)
 
 The listwise rerankers are not covered by `scripts/benchmark.py` - it drives
 `SentenceTransformer.encode()`, and they are not SentenceTransformer models.
@@ -116,17 +170,53 @@ batch goes through one forward pass. Budget by total tokens per request, not by
 document count.
 
 For higher throughput:
-1. **Batch at the client.** Send 32-256 inputs per request, not one at a time.
-2. **Use matryoshka** to truncate output dims at query time if the index dim doesn't need to be full size.
-3. **Multiple replicas.** A 4-vCPU + 1xL4 host can run one container. Two hosts -> 2x. Load balance with anything (nginx, HAProxy, ALB).
-4. **Bigger GPU.** A10G is ~2x L4, A100 ~4x for these models.
+1. **Ask for `base64`**, as above. Free, and the largest single factor on bulk requests.
+2. **Batch at the client.** Send 32-256 inputs per request, not one at a time.
+3. **Use matryoshka** to truncate output dims at query time if the index dim doesn't need to be full size.
+4. **Multiple replicas.** A 4-vCPU + 1xL4 host can run one container. Two hosts -> 2x. Load balance with anything (nginx, HAProxy, ALB).
+5. **Bigger GPU.** A10G is ~2x L4, A100 ~4x for these models.
 
-## Deployment topologies in the customer environment
+## GPU dynamic batching — the `:gpu-opt` images
 
-Where the jina-on-prem container sits in a typical customer architecture:
+A `:gpu` container runs one forward pass at a time, so if your clients each send one input and there are many of them, they queue. The `:gpu-opt` tag is the same image with a server-side batcher enabled: one GPU worker collects whatever requests are in flight, sorts them by length, packs them into a token-budgeted batch and runs them together. Published for the 16 embedding models; rerankers, ColBERT, reader and VLM images come as `:cpu` and `:gpu` only.
+
+**Which one to run**, from measuring both on the same GPU across all 16 models:
+
+| Your traffic | Choose | Why |
+|---|---|---|
+| Many clients, one or a few inputs per request | `:gpu-opt` | The batcher does the batching your clients are not doing. Latency improves too, because a request waits behind a batch instead of behind a queue. |
+| Few clients, 32-256 inputs per request | `:gpu` | No gain to collect — the client already batches. Across the 16 models the median difference at these shapes was 0.98x at 8x32 and 0.93x at 4x128, and the worst case was 0.58x. |
+| Mixed, or you are not sure | `:gpu-opt` | It is never much worse on bulk traffic and much better on concurrent traffic. Check against your own shape. |
+
+We are not publishing a throughput multiplier for the concurrent case. The gains we measure there are large, but at high concurrency with single-input requests our load generator becomes the limiting factor rather than the server, so the number would describe our test harness as much as the product. Measure it on your own traffic shape.
+
+**The two images return the same vectors.** Same corpus, same GPU, one image after the other:
+
+| Model | min cosine | max per-dimension delta |
+|---|---|---|
+| `jina-embeddings-v5-text-nano`, `-text-small`, `-omni-nano`, `-omni-small` | 1.0 | 0 |
+| `jina-embeddings-v3`, `jina-embeddings-v4`, `jina-clip-v1`, `jina-clip-v2` | 1.0 | 0 |
+| `jina-embeddings-v2-base-en` | 0.99999983 | 7.3e-05 |
+| `jina-embeddings-v2-base-es` | 0.99999981 | 7.1e-05 |
+| `jina-embeddings-v2-base-code` | 0.99999976 | 8.8e-05 |
+| `jina-embedding-b-en-v1` | 0.99999919 | 1.9e-04 |
+| `jina-embeddings-v2-base-de` | 0.99999907 | 2.4e-04 |
+| `jina-code-embeddings-0.5b` | 0.99999749 | 4.4e-04 |
+| `jina-code-embeddings-1.5b` | 0.99999738 | 7.4e-04 |
+| `jina-embeddings-v2-base-zh` | 0.99989038 | 1.6e-03 |
+
+Eight of the sixteen are identical to the last bit. The rest differ only where a different batch composition changes floating-point summation order, which is normal for any batching inference server and is far below the scale that affects retrieval ranking.
+
+To check this on your own hardware, embed the same inputs against both images and compare — no special tooling needed, since both accept the identical request.
+
+Tuning, if the defaults do not fit: `JINA_BATCH_TOKENS` (token budget per batch), `JINA_BATCH_WAIT_MS` (how long the worker waits for more requests before running), `JINA_DTYPE`. The defaults are set for an L4.
+
+## Deployment topologies
+
+Where the jina-on-prem container sits in a typical architecture:
 
 ```
-  outside  │   customer perimeter (firewall / VPN / ZTNA)
+  outside  │   your perimeter (firewall / VPN / ZTNA)
   ─────────┼────────────────────────────────────────────────────
            │
    user  ──┼──► ingress ──► app ──► jina-on-prem   ─►  ╳ internet
@@ -159,7 +249,7 @@ Three patterns:
 
 - **Single host** is fine for POC, dev, internal tools. No redundancy.
 - **Active-active** with two hosts behind any L4 load balancer. Models are stateless so any request can go to any replica. Use this for production. Maintain spare image tarballs on disk so you can rebuild a host without rebundling.
-- **Kubernetes** if the customer is already running it. Each pod is `docker run` with a `Service` and `Deployment`. Persistent volume not needed (model is in the image). NodeSelector for GPU nodes if you mix GPU and CPU.
+- **Kubernetes** if you already run it. Each pod is `docker run` with a `Service` and `Deployment`. Persistent volume not needed (model is in the image). NodeSelector for GPU nodes if you mix GPU and CPU.
 
 A ready-to-apply manifest with Namespace + Deployment + Service + HPA + Ingress lives at [`k8s/jina-on-prem.yaml`](https://github.com/jina-ai/jina-on-prem/blob/main/k8s/jina-on-prem.yaml):
 
@@ -185,7 +275,7 @@ The manifest includes:
 
 To run two models (embed + rerank), copy the Deployment+Service blocks with different names and images.
 
-## Customer-side prerequisites checklist
+## Prerequisites checklist
 
 Before deploying or transferring a bundle:
 

@@ -2,7 +2,7 @@
 
 Demonstrates the four common patterns:
   1. OpenAI SDK against /v1/embeddings (drop-in for OpenAI text-embedding-3-*)
-  2. Cohere-style /v1/embed via raw HTTP
+  2. Cohere-style /v2/embed via raw HTTP
   3. /v1/rerank with a separate reranker container
   4. Matryoshka dimensions
 
@@ -34,9 +34,9 @@ def via_openai_sdk():
 
 
 def via_cohere_shape():
-    """Cohere /v1/embed shape. Use input_type to control task routing."""
+    """Cohere /v2/embed shape. Use input_type to control task routing."""
     r = requests.post(
-        f"{EMBED_URL}/v1/embed",
+        f"{EMBED_URL}/v2/embed",
         json={"texts": ["query side"], "input_type": "search_query"},
         timeout=30,
     )

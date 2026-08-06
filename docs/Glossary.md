@@ -40,7 +40,7 @@ Short definitions for terms used across the wiki.
 
 ## G
 
-**GHCR** — GitHub Container Registry (`ghcr.io`). Where prebuilt jina-on-prem images live. Requires `docker login` with a GitHub PAT (`read:packages` scope).
+**GHCR** — GitHub Container Registry (`ghcr.io`). Where prebuilt jina-on-prem images live. Published images pull anonymously; no account and no token.
 
 ## H
 

@@ -115,8 +115,7 @@ Doubles disk usage during the transition. Use when you can't afford even brief r
 If you're maintaining a fork or pinning custom deps:
 
 - `models/catalog.json` is the single source of truth for per-model versions.
-- After editing a `deps` block, regenerate the Model Catalog page: `python3 scripts/gen_catalog_md.py > docs/Model-Catalog.md && ./scripts/sync-wiki.sh`.
-- `CONTRIBUTING.md` documents why each pin exists (transformers 4.51 for Qwen3Config, etc.). Loosen with care - many models ship requirements.txt that the bundle phase deletes specifically to prevent runtime auto-upgrade.
+- Each pin exists because that model needs a config class or attention implementation from one specific release; see [Troubleshooting -> Transformers version pins](Troubleshooting#transformers-version-pins) for how to read the pin out of the catalog. Loosen with care - many models ship a `requirements.txt` that the bundle phase deletes specifically to prevent runtime auto-upgrade.
 
 ## Pinning vs floating - guidance
 
@@ -145,7 +144,7 @@ Keep the previous bundle's `.tar.gz` on disk (or in your artifact store) for at 
 
 ## Customer-side change control
 
-Most regulated customers need to track:
+In a regulated environment you will usually need to track:
 
 | Item | Where to find it |
 |---|---|

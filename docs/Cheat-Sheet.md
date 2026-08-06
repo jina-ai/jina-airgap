@@ -12,7 +12,7 @@ One-page quick reference.
    ───────────────────           ─────────────────
 
    bundle  ─►  .tar.gz  ─►  docker load  ─►  docker run  ─►  port 8080
-   (network)   (USB / SCP)                  (offline)        4 schemas
+   (network)   (USB / SCP)                  (offline)        5 schemas
 ```
 
 ## Deployment commands
@@ -43,14 +43,17 @@ curl http://localhost:8080/health
 
 Full table: [Model Catalog](Model-Catalog).
 
-## Four API schemas (all simultaneous, same container)
+## Five API schemas (all simultaneous, same container)
 
 | Schema | Endpoint | One-line example |
 |---|---|---|
+| Jina | `POST /v1/embeddings` | `{"input":["hi"],"task":"retrieval.query"}` |
 | OpenAI | `POST /v1/embeddings` | `{"input":["hi"]}` |
-| Cohere | `POST /v1/embed` | `{"texts":["hi"],"input_type":"search_query"}` |
+| Cohere | `POST /v2/embed` | `{"texts":["hi"],"input_type":"search_query"}` |
 | Gemini | `POST /v1/models/MODEL:embedContent` | `{"content":{"parts":[{"text":"hi"}]}}` |
-| Reranker | `POST /v1/rerank` | `{"query":"...","documents":["...","..."],"top_n":2}` |
+| Voyage | `POST /v1/multimodalembeddings` | `{"inputs":[{"content":[{"type":"text","text":"hi"}]}]}` (multimodal models) |
+| Reranker | `POST /v1/rerank`, `POST /v2/rerank` | `{"query":"...","documents":["...","..."],"top_n":2}` |
+| Reader / VLM | `POST /v1/chat/completions` | `{"messages":[{"role":"user","content":"hi"}]}` |
 | Health | `GET /health` | (returns model + device + schemas) |
 
 ## Tasks (v5)
@@ -94,7 +97,7 @@ Full table: [Model Catalog](Model-Catalog).
 | Error | Fix |
 |---|---|
 | `permission denied connecting to docker API` | `sudo usermod -aG docker $USER`, reconnect |
-| `Error response: unauthorized` (on `docker pull`) | `docker login ghcr.io -u USER`; needs `read:packages` PAT |
+| `Error response: unauthorized` (on `docker pull`) | Not an auth problem - published images pull anonymously. No image exists at that name; check the Prebuilt column of the [Model Catalog](Model-Catalog) |
 | `no matching manifest for linux/arm64/v8` | Apple Silicon: add `--platform linux/amd64` to `pull` and `run` |
 | `bind: address already in use` | Map a different port: `-p 9090:8080` |
 | Container exits with CUDA error | Driver too old: `nvidia-smi` should show >=525 |

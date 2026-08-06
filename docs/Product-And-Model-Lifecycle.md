@@ -57,7 +57,7 @@ This is the most common misunderstanding, and getting it wrong leads to unrealis
 **What maintenance CANNOT do - because it is physically not how models work:**
 
 - **We cannot "fix" a model's quality on a specific task by patching it.** If a model underperforms on, say, a particular language or domain, there is no code change that repairs it. The only way to change what a model *knows* or *how well it performs* is to **train new weights** - and new weights are, by definition, **a new model generation**, not a patch to the old one.
-- **We do not retrain or alter the weights of a released model.** A shipped generation is frozen. This is a feature, not a limitation: it is exactly what guarantees that the same bundle produces bit-identical output forever (see [determinism](#determinism-and-migration-guarantees)), which is what regulated customers require for reproducibility and audit.
+- **We do not retrain or alter the weights of a released model.** A shipped generation is frozen. This is a feature, not a limitation: it is exactly what guarantees that the same bundle produces bit-identical output forever (see [determinism](#determinism-and-migration-guarantees)), which is what a regulated environment requires for reproducibility and audit.
 - **A "quality upgrade" is always a migration to a newer generation, never an in-place fix.** When we release, for example, a v5 text embedding model, that is the successor to v3 - a different model with different weights and different output vectors, not a repaired v3.
 
 > **Rule of thumb.** Treat a model version like a pressed vinyl record, not like a web app. We can fix the turntable (runtime), replace a worn needle (dependencies), and press the same recording onto a lighter disc (quantization). We cannot re-record the music without cutting a new record (a new model generation). Anyone expecting a model to be "hotfixed" on a task the way a software bug is patched is applying the wrong mental model - and will mis-plan their roadmap because of it.
@@ -86,7 +86,7 @@ Because these are long-lived, on-premise and often air-gapped deployments in reg
 - **36 months (3 years)** from the model generation's GA (initial public release) date, **or**
 - **24 months (2 years)** from the GA date of its **direct replacement** generation,
 
-whichever is later - and in practice we expect to maintain widely deployed generations for **three to four years or more**. As long as Jina/Elastic offers the air-gap product, we intend to keep maintaining the generations customers actually run in production; we will not strand a deployed customer on a short clock. This is deliberately longer than typical hosted-API windows (OpenAI commits to a 6-month minimum before retirement; Azure Foundry to an 18-month GA lifecycle) because those clocks govern *shutting an endpoint off*, which does not apply here - our clock only governs how long *we* keep shipping fixes.
+whichever is later - and in practice we expect to maintain widely deployed generations for **three to four years or more**. As long as Jina/Elastic offers the air-gap product, we intend to keep maintaining the generations that are actually running in production rather than putting a deployed model on a short clock. This is deliberately longer than typical hosted-API windows (OpenAI commits to a 6-month minimum before retirement; Azure Foundry to an 18-month GA lifecycle) because those clocks govern *shutting an endpoint off*, which does not apply here - our clock only governs how long *we* keep shipping fixes.
 
 Remember what "maintenance" covers here: **runtime, dependencies, packaging, and quantization of the same weights - not model quality.** Improved quality only ever arrives as a new generation, which you adopt on your own schedule (see [Models are not software](#models-are-not-software-what-maintenance-really-means)).
 
@@ -110,7 +110,7 @@ timeline
 
 ## Support term
 
-Support (your questions, plus deployment / integration / sizing / migration guidance) tracks the parent Elastic support entitlement and applies while a model is in the GA, Legacy, or Maintenance stage. Formal support tiers, SLAs, and schedules are defined in the Jina SM Support Policy (in progress; see [FAQ](FAQ)). For air-gapped and regulated deployments, support is delivered through your approved channel and never requires the model to reach the internet.
+Support (your questions, plus deployment / integration / sizing / migration guidance) tracks the parent Elastic support entitlement and applies while a model is in the GA, Legacy, or Maintenance stage. Tiers, response targets and schedules come from that entitlement. For air-gapped and regulated deployments, support is delivered through your approved channel and never requires the model to reach the internet.
 
 ## Notice and communication
 
@@ -143,7 +143,7 @@ What the air-gap architecture changes is only the *enforcement mechanism*, not t
 
 These are independent. The absence of a technical kill switch is an availability and reliability guarantee (a deployed bundle will not go dark mid-term because of something on our side); it is **not** a grant of perpetual rights. A customer whose term has lapsed is **out of subscription and must renew to remain licensed**, even though the software would still technically run. Continuing to run a bundle after the term has ended, without renewal, is a license compliance matter, not a technical state we enforce remotely.
 
-For revenue recognition: treat this as a term subscription. The optional built-in [time-bound license key](Licensing) mirrors this - it carries an expiry and can flag an out-of-term deployment - but by default it is fail-open and never blocks a running customer, precisely because entitlement is governed by the contract, not by the software. See [Licensing](Licensing) for how the key works and its capability boundaries.
+The optional built-in [time-bound license key](Licensing) mirrors the term: it carries an expiry and can flag an out-of-term deployment, but by default it is fail-open and never blocks a running deployment, because entitlement is governed by the contract rather than by the software. See [Licensing](Licensing) for how the key works and where its capabilities end.
 
 **Lifecycle stage vs. license are also independent.** Model weights stay under their original license (most current generations are CC-BY-NC-4.0; v1/v2 are Apache-2.0 - see [Model Catalog](Model-Catalog)). A CC-BY-NC-4.0 model in production requires a valid, in-term Elastic commercial subscription at every lifecycle stage. Reaching EOL neither grants new license rights nor extends your subscription term.
 
@@ -165,13 +165,13 @@ Generation-level status. Individual model IDs and per-model licenses are in the 
 ## FAQ
 
 **If a model is at End of Life, do I have to stop using it?**
-EOL only means we stop shipping fixes and standard support for that generation - there is no technical switch that stops it, so a deployed bundle keeps running exactly as before. Note this is separate from your subscription: you still need a current, in-term commercial subscription to be licensed to run it (Jina SM is a term subscription, not a perpetual license - see [Licensing and the subscription term](#licensing-and-the-subscription-term)). Many air-gapped customers deliberately freeze a validated model for years, under an active subscription.
+EOL only means we stop shipping fixes and standard support for that generation - there is no technical switch that stops it, so a deployed bundle keeps running exactly as before. Note this is separate from your subscription: you still need a current, in-term commercial subscription to be licensed to run it (Jina SM is a term subscription, not a perpetual license - see [Licensing and the subscription term](#licensing-and-the-subscription-term)). Freezing a validated model for years under an active subscription is a normal and supported choice.
 
 **Can you fix the model's accuracy on our specific documents/language without us migrating?**
 No - and this is fundamental, not a policy choice. A model's quality is determined by its trained weights, which are frozen. There is no patch that changes what a model has learned. Better quality on a task comes only from a newer generation (new weights), which you adopt as a migration. What we *can* do within a generation is fix the runtime, patch dependencies, and provide quantized builds of the same weights.
 
 **How long will you really support the model we deploy today?**
-At least 3 years from its GA, and at least 2 years after its replacement ships, whichever is later - and in practice we expect three to four years or more for widely deployed generations. As long as we offer this product, we maintain what customers run.
+At least 3 years from its GA, and at least 2 years after its replacement ships, whichever is later - and in practice we expect three to four years or more for widely deployed generations. As long as we offer this product, we maintain the generations that are actually deployed.
 
 **What happens to support if Jina/Elastic stops offering the product entirely?**
 Your bundles still run - they are self-contained and yours. Because the toolkit, Dockerfiles, and CLI are Apache-2.0 and public, you (or a third party) can continue to re-bundle and operate any model you are licensed for from its weights. There is no license server or kill switch that could strand you.
@@ -184,4 +184,4 @@ It is a repackaging of the *same* trained weights into a more compact numeric fo
 - [Versioning & Updates](Versioning-And-Updates) - roll out a new generation with zero downtime
 - [Model Catalog](Model-Catalog) - per-model params, context, license
 - [FAQ](FAQ) - business/licensing and long-term-commitment questions
-- [Why Air-Gap](Why-Airgap) - why deployed models never stop working
+- [Why On-Prem](Why-On-Prem) - why deployed models never stop working

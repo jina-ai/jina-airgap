@@ -5,8 +5,7 @@ responses here are byte-compatible with it -- that parity is the gate this
 rewrite is measured against.
 
 The request deliberately accepts each provider's field names as aliases,
-because the public API does exactly the same thing (`AliasChoices` throughout
-`sefo-gcp` `models/embedding.py` and `models/reranking.py`): OpenAI's
+because the hosted API does exactly the same thing: OpenAI's
 `encoding_format`, Voyage's `truncation` / `top_k`, Gemini's `task_type` /
 `output_dimensionality`, Cohere's `texts` / `max_tokens_per_doc`. That is a
 field union, not an adapter. Anything a provider has that Jina does not --

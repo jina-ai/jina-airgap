@@ -68,7 +68,7 @@ flowchart TB
 
 ## jina-on-prem vs hosted Jina API (api.jina.ai)
 
-**api.jina.ai** is Jina's hosted inference endpoint. Easiest path if the customer can reach the internet.
+**api.jina.ai** is Jina's hosted inference endpoint, and the easiest path if your deployment can reach the internet.
 
 | | Hosted (api.jina.ai) | jina-on-prem |
 |---|---|---|
@@ -80,13 +80,13 @@ flowchart TB
 | Audit story | vendor compliance | customer owns the artifact |
 | Customer holds weights | no | yes |
 
-**Use hosted when the customer can reach api.jina.ai and pay per request.** Use jina-on-prem when they can't, or won't.
+**Use the hosted API if your deployment can reach `api.jina.ai` and per-request billing suits you.** Use jina-on-prem when it cannot, or when the data must not leave your network.
 
 ## jina-on-prem vs custom Docker image (DIY)
 
 You could build your own Docker image with HF transformers and the model weights. What does jina-on-prem add?
 
-- **Pinned deps per model** with documented reasons (see CONTRIBUTING.md "Known Caveats")
+- **Pinned deps per model**, exact rather than ranged, and readable straight out of `models/catalog.json`
 - **Multi-schema API** (OpenAI + Cohere + Gemini + Voyage) - 1000+ lines of `server/app.py` you don't have to write
 - **Patched custom code** for offline use (delete model repo requirements.txt, monkeypatch `trust_remote_code`)
 - **Tested workflow** for 29 models including the gnarly ones (omni multimodal, Qwen3-based rerankers, ColBERT, ReaderLM, VLM)
@@ -119,12 +119,12 @@ The fastest "show me it works" path:
 1. Pull `jina-embeddings-v5-text-nano:cpu` from GHCR (5 min)
 2. `docker run` on a laptop or test VM
 3. `curl /v1/embeddings`
-4. Open `/docs` (FastAPI swagger UI) to see all 4 schemas
+4. Open `/docs` (FastAPI swagger UI) to see all 5 schemas
 
 To compare models side by side: build a `.tar.gz` for a second model (v3 or v4) using the same workflow. Different bundle = different model, same runtime contract.
 
 ## Next
 
-- [Why Air-Gap](Why-Airgap) - when air-gap is the right choice
-- [Customer Scenarios](Customer-Scenarios) - applied playbooks
+- [Why On-Prem](Why-On-Prem) - when air-gap is the right choice
+- [Deployment Patterns](Deployment-Patterns) - applied playbooks
 - [Sizing & Hardware](Sizing-And-Hardware) - capacity for the chosen path

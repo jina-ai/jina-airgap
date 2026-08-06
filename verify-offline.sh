@@ -17,9 +17,9 @@
 # realistic request can still answer a two-word one.
 #
 # Usage:
-#   ./test_airgap.sh                    # every local jina/ image
-#   ./test_airgap.sh jina/MODEL:cpu     # one image
-#   GPU=1 ./test_airgap.sh IMAGE        # pass --gpus all
+#   ./verify-offline.sh                    # every local jina/ image
+#   ./verify-offline.sh jina/MODEL:cpu     # one image
+#   GPU=1 ./verify-offline.sh IMAGE        # pass --gpus all
 
 set -uo pipefail
 LOGFILE="${LOGFILE:-test_results.log}"

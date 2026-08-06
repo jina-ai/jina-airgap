@@ -11,7 +11,7 @@ MAX_MEDIA_BYTES = 10 * 1024 * 1024  # 10 MB per input
 
 # A URL in the request body is the CALLER's fetch, and refusing it in code
 # protected nobody. The air gap is enforced by the network the container is
-# given -- `test_airgap.sh` runs every image with `--network none` and proves a
+# given -- `verify-offline.sh` runs every image with `--network none` and proves a
 # socket cannot open -- while `HF_HUB_OFFLINE` governs only what the container
 # downloads on its own initiative at load time. Neither is weakened by reading
 # a host the operator's own network can already reach, and the deployment this

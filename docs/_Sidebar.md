@@ -1,13 +1,12 @@
 ### Start here
 
 - [Home](Home)
-- [Why air-gap?](Why-Airgap)
+- [Why On-Prem?](Why-On-Prem)
 - [Quick Start](Quick-Start)
-- [Cheat Sheet](Cheat-Sheet)
 
-### Customer playbooks
+### Choose
 
-- [Customer Scenarios](Customer-Scenarios)
+- [Deployment Patterns](Deployment-Patterns)
 - [Picking a Model](Picking-A-Model)
 - [Sizing & Hardware](Sizing-And-Hardware)
 - [Comparison vs alternatives](Comparison)
@@ -20,15 +19,16 @@
 - [Architecture](Architecture)
 - [Versioning & Updates](Versioning-And-Updates)
 - [Product & Model Lifecycle (EOL)](Product-And-Model-Lifecycle)
+- [Security & Hardening](Security-And-Hardening)
+
+### Help
+
+- [Troubleshooting](Troubleshooting)
+- [Support](Support)
+- [FAQ](FAQ)
 
 ### Reference
 
 - [Model Catalog](Model-Catalog)
+- [Cheat Sheet](Cheat-Sheet)
 - [Glossary](Glossary)
-- [FAQ](FAQ)
-- [Troubleshooting](Troubleshooting)
-
-### Contribute
-
-- [CONTRIBUTING](https://github.com/jina-ai/jina-on-prem/blob/main/CONTRIBUTING.md)
-- [Open issue](https://github.com/jina-ai/jina-on-prem/issues/new)

@@ -83,7 +83,7 @@ You can, and for some models that's a fine path. jina-on-prem's value-add is: pi
 Yes by design - HF_HUB_OFFLINE=1 + TRANSFORMERS_OFFLINE=1 + no other outbound code. The image and source code on GitHub are auditable. Stronger guarantee: run it on a host with no egress route at all (most air-gapped environments already enforce this).
 
 **"What's the long-term commitment?"**
-The Apache-2.0 toolkit, Dockerfiles, and CLI are public. If Jina shuts down tomorrow, customers can keep rebundling existing models with their weights. The CC-BY-NC license on weights is what they're paying for, not the runtime. For the full support/maintenance horizon and what "end of life" means for an air-gapped model, see [Product & Model Lifecycle (EOL)](Product-And-Model-Lifecycle).
+The Apache-2.0 toolkit, Dockerfiles, and CLI are public. If Jina shut down tomorrow, you could keep rebundling existing models from the weights you hold. The CC-BY-NC license on the weights is what a commercial license covers, not the runtime. For the full support/maintenance horizon and what "end of life" means for an air-gapped model, see [Product & Model Lifecycle (EOL)](Product-And-Model-Lifecycle).
 
 **"Can you patch the model to fix its accuracy on our task, like a software bug?"**
 No. A model's quality is baked into its frozen, trained weights - there is no line of code to change. Better quality on a task only comes from a newer model generation (new weights), which you adopt as a migration on your own schedule. Within a generation we maintain the runtime, dependencies, and quantized builds of the same weights - not the model's learned behaviour. Full explanation: [Product & Model Lifecycle -> Models are not software](Product-And-Model-Lifecycle#models-are-not-software-what-maintenance-really-means).
@@ -92,5 +92,5 @@ No. A model's quality is baked into its frozen, trained weights - there is no li
 
 - [Product & Model Lifecycle (EOL)](Product-And-Model-Lifecycle) - how long a deployed model is supported
 - [Troubleshooting](Troubleshooting) - errors and fixes
-- [Customer Scenarios](Customer-Scenarios) - applied use cases
+- [Deployment Patterns](Deployment-Patterns) - applied use cases
 - [API Reference](API-Reference) - exact request/response shapes

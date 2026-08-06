@@ -204,14 +204,7 @@ def cmd_list(args):
 
 def get_dockerfile_path(runtime: str = "gpu") -> Path:
     """Return the Dockerfile path for the given runtime (gpu or cpu)."""
-    candidates = [
-        SCRIPT_DIR / "docker" / f"Dockerfile.{runtime}",
-        SCRIPT_DIR / "docker" / "Dockerfile",  # legacy fallback
-    ]
-    for p in candidates:
-        if p.exists():
-            return p
-    return candidates[0]  # will fail with a clear error downstream
+    return SCRIPT_DIR / "docker" / f"Dockerfile.{runtime}"
 
 
 def build_model_requirements(model: dict) -> str:
@@ -944,7 +937,7 @@ def main():
     if len(sys.argv) == 1:
         print_banner()
         err(f"{BOLD}Commands:{RESET}\n")
-        err(f"  {BOLD}list{RESET}    List available models (28 total)")
+        err(f"  {BOLD}list{RESET}    List available models")
         err(f"  {BOLD}bundle{RESET}  [Phase 1 - network]  Build + save Docker image bundle")
         err(f"  {BOLD}deploy{RESET}  [Phase 2 - offline]  Load bundle and start container")
         err(f"  {BOLD}serve{RESET}   Serve model directly (no Docker, deps required)")
