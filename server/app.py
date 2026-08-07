@@ -258,4 +258,7 @@ async def health(response: Response):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=settings.port)
+    # h11 backend: avoids httptools dropping the request body on HTTP/2 upgrade
+    # requests (Upgrade: h2c + Connection: Upgrade), which causes 422s from Java
+    # HttpClient, Go net/http, Spring RestClient. See uvicorn issue #2722.
+    uvicorn.run(app, host="0.0.0.0", port=settings.port, http="h11")
