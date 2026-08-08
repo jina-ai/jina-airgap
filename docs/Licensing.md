@@ -94,7 +94,8 @@ JINA-eyJleHAiOjE3OTE...   <- this is the key
 |---|---|---|
 | `--sub` | Who the key is issued to, shown in `/health` and logs | required |
 | `--days` | Validity window in days | 30 |
-| `--model` | Restrict the key to one model id | `*` (any) |
+| `--category` | Restrict the key to one licence category: `text`, `multimodal`, `reranker`, `reader`. Covers every model the image's catalog assigns to it, including ones added later. | unset |
+| `--model` | Restrict the key to one exact model id. Mutually exclusive with `--category`. | `*` (any) |
 | `--secret` | Sign with a custom secret, matching the server's `JINA_LICENSE_SECRET` | public default |
 | `--json` | Emit key and claims as JSON | off |
 
@@ -164,6 +165,7 @@ No `docker build`, no re-transfer of the multi-GB bundle, and no downtime beyond
 | Work fully offline | Yes | Local HMAC check, no network |
 | Issue or renew without rebuilding the image | Yes | Runtime env var |
 | Restrict a key to a specific model | Yes | `keygen --model <id>` |
+| Restrict a key to a licence category | Yes | `keygen --category <name>`, covering the models the catalog assigns to it |
 | Never block a running deployment | Yes | The default `warn` mode is fail-open |
 | Optionally block after expiry | Yes | `enforce` mode plus grace window |
 | Resist a determined user | **No** | The signing secret ships in the image, so a key can be minted or the check disabled. See below. |
@@ -175,8 +177,8 @@ No `docker build`, no re-transfer of the multi-GB bundle, and no downtime beyond
 
 The mechanism, stated plainly, because a reviewer will ask:
 
-- **The key is a signed token with an embedded expiry.** The payload is a small JSON object (`sub`, `iat`, `exp`, `model`, `v`), base64url-encoded, followed by an **HMAC-SHA256** signature. Structurally the same as a signed JWT with an `exp` claim, which is the standard way to validate a license offline.
-- **Validation is a local comparison.** The server recomputes the HMAC with its secret, compares in constant time, then checks `exp` against the system clock and, if set, the model scope. There is no network call on any path.
+- **The key is a signed token with an embedded expiry.** The payload is a small JSON object, base64url-encoded, followed by an **HMAC-SHA256** signature. Structurally the same as a signed JWT with an `exp` claim, which is the standard way to validate a license offline. The claims are `sub`, `iat`, `exp`, `v`, exactly one scope claim (`category` or `model`), and `order_line_id` on a key issued against a purchase.
+- **Validation is a local comparison.** The server recomputes the HMAC with its secret, compares in constant time, then checks `exp` against the system clock and, if present, the scope. There is no network call on any path.
 - **It is not tamper-proof, and should not be described as such.** The signing secret ships inside the image, so anyone with the image can mint a key or set `JINA_LICENSE_MODE=off`. This is a compliance and visibility feature, not an access control. Representing it as tamper-resistant in a questionnaire would be inaccurate.
 - **Why not TOTP or an authenticator app?** TOTP generates rotating 30-second codes for interactive 2FA against a live verifier. There is no interactive login and no live verifier inside a disconnected deployment, so it is the wrong shape for a durable multi-month window. A signed token with an `exp` is the right one.
 - **Fail-open is enforced in one place.** A single `decide()` function is the only authority on whether to serve. In `warn` and `off` it always allows; in `enforce` an expired key is allowed through the grace window. Validation is wrapped so that an unexpected error also fails open. No code path lets a default-configured server refuse a request because of the key.

@@ -196,6 +196,17 @@ async def _license_gate(request, call_next):
         "model_not_licensed": f"Key not valid for model '{settings.short_model_id}'.",
         "bad_signature": "License key signature invalid.",
         "malformed_license": "License key is malformed.",
+        # Its own message, because this is almost always a category mistyped at
+        # issuance rather than the purchasing problem the generic one implies.
+        "unknown_category": (
+            f"License key names a category this image does not recognise: "
+            f"{d['payload'].get('category')!r}. Expected one of: "
+            f"{', '.join(_license.CATEGORIES)}. Ask for the key to be reissued."
+        ),
+        "conflicting_scope": (
+            "License key is scoped to both a category and a model id, which "
+            "contradict each other. Ask for the key to be reissued."
+        ),
     }.get(d["reason"], "License validation failed.")
     return JSONResponse(
         status_code=403,
