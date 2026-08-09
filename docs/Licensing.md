@@ -115,11 +115,14 @@ curl -s http://localhost:8080/health | python3 -m json.tool
 ```json
 {
   "status": "ok",
+  "model": "jina-embeddings-v5-text-nano",
+  "category": "text",
   "license": {
     "mode": "warn",
     "valid": true,
     "fail_open": true,
     "licensed_to": "acme-corp",
+    "model": "*",
     "expires": "2026-10-04T22:00:00Z",
     "days_left": 89.9
   }
@@ -127,6 +130,10 @@ curl -s http://localhost:8080/health | python3 -m json.tool
 ```
 
 That `license` block is what you show an auditor: a concrete, expiring, machine-checkable entitlement, produced entirely offline.
+
+The top-level `model` and `category` say what this image *is*: the model it runs, and the licence category that model is sold under. The `license` block says what your key *covers*, so a key scoped with `--category` shows a `category` there instead of a `model`. Reading the two together answers "is this deployment inside what we bought?" without decoding anything, and if the two categories disagree the key does not cover this image, with `reason` saying `model_not_licensed`.
+
+The top-level `category` is present even with no key set at all, so it is also how you check which category an image needs before buying anything.
 
 **Optional — a trial with a real expiry**, for a POC you want to lapse:
 
@@ -190,7 +197,7 @@ The mechanism, stated plainly, because a reviewer will ask:
 | `JINA_LICENSE_KEY` | (empty) | The key to present. Empty is fine in `warn` and `off`. |
 | `JINA_LICENSE_MODE` | `warn` | `warn` (fail-open, default), `enforce`, or `off`. |
 | `JINA_LICENSE_GRACE_DAYS` | `14` | In `enforce` only: days an expired key still works. `0` for a hard cutoff. |
-| `JINA_LICENSE_SECRET` | public constant | HMAC signing secret. Rotate with `keygen --secret` and a matching value, or `--build-arg LICENSE_SECRET=...` at bundle time. |
+| `JINA_LICENSE_SECRET` | public constant | HMAC signing secret. Set it with `--build-arg LICENSE_SECRET=...` at bundle time and sign with a matching `keygen --secret`. Changing it later invalidates every key already signed with the old value, so it is a coordinated change across your images and keys rather than routine maintenance. |
 | `JINA_LICENSE_ENFORCE` | (unset) | Older equivalent: `0` means `off`, `1` means `enforce`. Superseded by `JINA_LICENSE_MODE`. |
 
 ## FAQ

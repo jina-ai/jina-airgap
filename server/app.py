@@ -199,7 +199,7 @@ async def _license_gate(request, call_next):
         # Its own message, because this is almost always a category mistyped at
         # issuance rather than the purchasing problem the generic one implies.
         "unknown_category": (
-            f"License key names a category this image does not recognise: "
+            "License key names a category this image does not recognise: "
             f"{d['payload'].get('category')!r}. Expected one of: "
             f"{', '.join(_license.CATEGORIES)}. Ask for the key to be reissued."
         ),
@@ -253,6 +253,9 @@ async def health(response: Response):
     resp = {
         "status": "ok" if ready else "unavailable",
         "model": settings.short_model_id,
+        # A fact about the model, from the catalog baked in here. What a key
+        # covers is under "license"; this is what one would have to cover.
+        "category": _license.category_of(settings.model_id),
         "device": settings.device,
         "ready": ready,
         "multimodal": engine.is_multimodal(),

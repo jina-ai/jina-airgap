@@ -916,7 +916,7 @@ def make_parser():
                           help="Who the license is issued to (customer/PM name)")
     keygen_p.add_argument("--days", type=int, default=30,
                           help="Validity window in days (default: 30)")
-    # One claim, three shapes, so the flags are exclusive rather than combinable.
+    # Two claims, and a key carries exactly one, so the flags are exclusive.
     scope_g = keygen_p.add_mutually_exclusive_group()
     scope_g.add_argument("--category", metavar="CATEGORY",
                          help="Restrict key to one licence category: "

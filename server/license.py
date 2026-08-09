@@ -117,8 +117,8 @@ SCHEMA_VERSION = 2
 VALID_MODES = ("warn", "enforce", "off")
 
 # Licence categories: the coarse grouping a commercial licence is sold by. A key
-# is scoped either to one of these, to a single exact model id, or to "*" (any).
-# All three go into the same ``model`` claim and are compared the same way.
+# names one of these in its "category" claim, or an exact model id (or "*") in
+# its "model" claim, and never both. See SCOPE in the module docstring.
 #
 # These strings are a frozen contract with every published image. Renaming one,
 # or moving a model from one category to another after an image carrying it has
@@ -216,7 +216,7 @@ def inspect(key: str) -> dict:
     return json.loads(_b64d(token))
 
 
-def _category_of(model_id: str) -> str:
+def category_of(model_id: str) -> str:
     """The licence category this model is sold under, or "" if it cannot be read.
 
     The catalog is the authority, not a rule applied here: the mapping is a
@@ -284,7 +284,7 @@ def validate(key: Optional[str], model_id: str = "") -> tuple[bool, str, dict]:
             # reader after a purchasing problem instead.
             if category not in CATEGORIES:
                 return False, "unknown_category", payload
-            if category == _category_of(model_id):
+            if category == category_of(model_id):
                 return True, "ok", payload
             return False, "model_not_licensed", payload
 
