@@ -234,13 +234,12 @@ _DENSE_SCRIPT = re.compile(
 def _approximate_tokens(text: str) -> int:
     """Token estimate for when the tokenizer cannot answer.
 
-    This number decides ``_refuse_over_length``, so it has to err high; counting
-    low admits input the model has no room for. Two simpler versions erred low
-    and both shipped: a word split reads 28,000 for 150,000 characters of
-    English against a 32,768 context where the real count is nearer 37,000, and
-    returns 1 for any amount of Chinese, while a flat four-per-token fixed Latin
-    and still let 65,000 Chinese characters through. Hence per-script weights,
-    keeping the word split as a floor.
+    This number decides ``_refuse_over_length``, so it errs high: counting low
+    admits input the model has no room for. Four characters per token is an
+    assumed floor for Latin rather than a measured ratio -- real ratios run
+    looser, and a model whose tokenizer loads is never counted from here. Dense
+    scripts are weighted near one per character, where a word split can return 1
+    for a whole sentence.
     """
     latin = len(_DENSE_SCRIPT.sub("", text))
     dense = len(text) - latin
