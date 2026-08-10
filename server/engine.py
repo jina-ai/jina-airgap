@@ -5,6 +5,7 @@ Routes call in here; ``families`` decides what actually happens per model.
 
 import itertools
 import logging
+import re
 import threading
 import time
 from contextlib import nullcontext
@@ -198,6 +199,54 @@ def tokenizer():
     return _family.tokenizer if _family else None
 
 
+_approximation_warned = False
+
+
+def _warn_approximating(reason: str) -> None:
+    """Say once that token counts are estimates, not the tokenizer's answer.
+
+    Once rather than per call: this sits on the request path.
+    """
+    global _approximation_warned
+    if not _approximation_warned:
+        _approximation_warned = True
+        logger.warning(
+            "Token counts are approximate for this model (%s); this affects the "
+            "over-length refusal as well as reported usage.",
+            reason,
+        )
+
+
+# Escapes rather than the characters: three of these bounds are unassigned
+# codepoints with no glyph, so written literally the class renders as tofu and
+# a wrong bound is invisible.
+_DENSE_SCRIPT = re.compile(
+    "["
+    "\u3040-\u30ff"  # hiragana and katakana
+    "\u3400-\u4dbf"  # CJK unified ideographs extension A
+    "\u4e00-\u9fff"  # CJK unified ideographs
+    "\uac00-\ud7af"  # hangul syllables
+    "\uf900-\ufaff"  # CJK compatibility ideographs
+    "]"
+)
+
+
+def _approximate_tokens(text: str) -> int:
+    """Token estimate for when the tokenizer cannot answer.
+
+    This number decides ``_refuse_over_length``, so it has to err high; counting
+    low admits input the model has no room for. Two simpler versions erred low
+    and both shipped: a word split reads 28,000 for 150,000 characters of
+    English against a 32,768 context where the real count is nearer 37,000, and
+    returns 1 for any amount of Chinese, while a flat four-per-token fixed Latin
+    and still let 65,000 Chinese characters through. Hence per-script weights,
+    keeping the word split as a floor.
+    """
+    latin = len(_DENSE_SCRIPT.sub("", text))
+    dense = len(text) - latin
+    return max(len(text.split()), dense + latin // 4)
+
+
 def token_lengths(texts: list[str], cap: Optional[int] = None) -> list[int]:
     """Tokens the model will actually process.
 
@@ -213,10 +262,12 @@ def token_lengths(texts: list[str], cap: Optional[int] = None) -> list[int]:
         try:
             encoded = tokenizer(texts, add_special_tokens=True)
             lengths = [len(ids) for ids in encoded["input_ids"]]
-        except Exception:
-            lengths = [len(text.split()) for text in texts]
+        except Exception as exc:
+            _warn_approximating(f"tokenizer raised ({type(exc).__name__}: {exc})")
+            lengths = [_approximate_tokens(text) for text in texts]
     else:
-        lengths = [len(text.split()) for text in texts]
+        _warn_approximating("tokenizer did not load")
+        lengths = [_approximate_tokens(text) for text in texts]
     if cap:
         lengths = [min(length, cap) for length in lengths]
     return lengths
