@@ -63,7 +63,7 @@ KEY FORMAT (compact, single line, copy-paste safe)
     payload_json = {"sub": "<customer>", "iat": <unix>, "exp": <unix>,
                     <one scope claim, see below>, "v": 2}
 
-A key issued against a purchase carries one further claim, "order_line_id".
+A key issued against a purchase carries one further claim, "order_product_id".
 Nothing validates it; /health echoes it so a deployment can be tied back to what
 was bought. Unknown claims are ignored, so a key validates with or without it.
 
@@ -362,8 +362,11 @@ def status(key: Optional[str], model_id: str = "") -> dict:
             out["model"] = payload.get("model", "*")
         # Not read by the gate at all; it rides along so support can tie a
         # deployment back to the purchase without decoding the key by hand.
-        if payload.get("order_line_id"):
-            out["order_line_id"] = payload["order_line_id"]
+        # Both spellings answer: a key carrying the older one would otherwise go
+        # quiet here, which reads as a key that never named a purchase.
+        order_product = payload.get("order_product_id") or payload.get("order_line_id")
+        if order_product:
+            out["order_product_id"] = order_product
         exp = payload.get("exp")
         if exp:
             out["expires"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(exp)))
