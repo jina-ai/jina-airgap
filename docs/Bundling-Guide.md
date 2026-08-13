@@ -2,7 +2,7 @@ How to build your own bundle from scratch. Use this when:
 
 - The model you want isn't in the [prebuilt list](Model-Catalog)
 - You need to pin different dependency versions
-- Your customer's policy forbids `docker pull` from third-party registries
+- Your policy forbids `docker pull` from third-party registries
 
 Output: a single self-contained `.tar.gz`. Bundle once, transfer, run forever offline.
 
@@ -36,19 +36,31 @@ Output: a single self-contained `.tar.gz`. Bundle once, transfer, run forever of
 
 ![bundle](images/02-bundle.gif)
 
-## Path A: bundle on GCP L4 (recommended)
+## Bundle on your own machine
 
-The repo ships [`scripts/bootstrap-gcp.sh`](https://github.com/jina-ai/jina-on-prem/blob/main/scripts/bootstrap-gcp.sh), a one-shot provisioner. It creates a `g2-standard-4` + L4 instance with Docker + NVIDIA Container Toolkit + the repo pre-cloned:
+Any Linux box with Docker. No GPU is needed at build time, even for a GPU bundle.
 
 ```bash
 git clone https://github.com/jina-ai/jina-on-prem.git
 cd jina-on-prem
-./scripts/bootstrap-gcp.sh                                   # defaults
-GPU_COUNT=0 MACHINE_TYPE=e2-standard-4 ./scripts/bootstrap-gcp.sh   # CPU-only builder
-PROJECT=other-proj ZONE=us-east4-a ./scripts/bootstrap-gcp.sh        # different project/zone
+python3 jina-on-prem.py bundle --model jina-embeddings-v5-text-nano --cpu-only --yes
 ```
 
-> **L4 stockouts are common in popular US zones**. If the script errors with "does not have enough resources", retry in `us-west1-a`, `us-east4-a`, `europe-west4-a`, or `asia-southeast1-a`. See [Troubleshooting -> L4 stockout](Troubleshooting#l4-stockout).
+## Optional: bundle on a cloud VM
+
+Same output, different builder. Worth it when your own machine is not Linux x86_64 (macOS builds under emulation and is markedly slower), or is short on the 30-200 GB of disk or on bandwidth for the weight download. The repo ships [`scripts/bootstrap-gcp.sh`](https://github.com/jina-ai/jina-on-prem/blob/main/scripts/bootstrap-gcp.sh), a one-shot provisioner for Google Cloud, which creates an instance with Docker, the NVIDIA Container Toolkit and the repo already cloned. It takes the project from your own `gcloud` configuration; nothing about it is specific to a particular account.
+
+Ask for a CPU-only instance. Nothing in a build needs a GPU, and GPU instance types are the ones that run out of capacity:
+
+```bash
+GPU_COUNT=0 MACHINE_TYPE=e2-standard-4 ./scripts/bootstrap-gcp.sh   # CPU-only builder
+./scripts/bootstrap-gcp.sh                                          # defaults, attaches an L4
+./scripts/bootstrap-gcp.sh my-builder us-east4-a                    # different zone
+```
+
+The zone is the second positional argument and defaults to `us-central1-a`; it is not read from your `gcloud` configuration.
+
+> GPU instance types are frequently out of capacity in the busiest zones. If the script reports "does not have enough resources", try another zone. See [Troubleshooting -> L4 stockout](Troubleshooting#l4-stockout).
 
 After provisioning, the script prints the SSH command. From inside:
 
@@ -57,17 +69,7 @@ cd ~/jina-on-prem
 sg docker -c 'python3 jina-on-prem.py bundle --model jina-embeddings-v5-text-nano --cpu-only --yes'
 ```
 
-`sg docker -c '...'` is only needed in the same session that installed Docker. After SSH reconnect, plain `docker` works.
-
-## Path B: bundle on your own machine
-
-Any Linux box with Docker. Skip the GCP step:
-
-```bash
-git clone https://github.com/jina-ai/jina-on-prem.git
-cd jina-on-prem
-python3 jina-on-prem.py bundle --model jina-embeddings-v5-text-nano --cpu-only --yes
-```
+`sg docker -c '...'` is only needed in the same session that installed Docker. After an SSH reconnect, plain `docker` works.
 
 ## CLI commands
 
@@ -147,7 +149,7 @@ The `.tar.gz` is one self-contained file. Move it however your policy allows:
 | SFTP / FTPS | if SCP is blocked |
 | Object storage (S3, GCS) | if the air-gapped side can reach it |
 | USB / removable disk | true air-gap, sneakernet |
-| Optical media (DVD, BD-R) | maximum-security customer DC |
+| Optical media (DVD, BD-R) | maximum-security data centre |
 | Whatever your change-management process approves | regulated environments usually have a fixed channel |
 
 On the target host:

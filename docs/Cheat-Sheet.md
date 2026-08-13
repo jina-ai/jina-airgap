@@ -2,7 +2,7 @@ One-page quick reference.
 
 ## Summary
 
-> Deploy Jina AI embedding, reranker, and reader models on customer infrastructure with zero outbound network calls.
+> Deploy Jina AI embedding, reranker, and reader models on your own infrastructure with zero outbound network calls.
 
 ## The two phases
 
@@ -77,7 +77,7 @@ Full table: [Model Catalog](Model-Catalog).
 - > 10 QPS or low-latency → L4 (24GB VRAM, handles any single model)
 - > 100 QPS → multiple replicas behind an LB, or A10G/A100
 
-## Customer pre-flight checklist
+## Pre-flight checklist
 
 - [ ] Docker 24+ installed on target host
 - [ ] (GPU) NVIDIA driver >= 525, NVIDIA Container Toolkit, `nvidia-smi` works

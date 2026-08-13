@@ -3,18 +3,17 @@ Air-gapped license-key gate for Jina SM.
 
 WHAT THIS IS (and is not)
 -------------------------
-A lightweight, offline, time-bound *entitlement signal*. It gives sales and
-audit a visible "the deployment carries a key that expires" control, without a
-license server, without phone-home, and without rebuilding the image to issue
-or renew a key. It is deliberately 防君子不防小人 ("keep honest people honest,
-not a real lock"): the signing secret ships inside the image, so anyone who
-reads this file can mint or bypass a key. That is intentional. It is NOT DRM
-and must not be sold as such - the customer holds the model weights, so there
-is nothing to truly lock.
+A lightweight, offline, time-bound *entitlement signal*: a visible record that
+a deployment carries a key that expires, without a license server, without
+phone-home, and without rebuilding the image to issue or renew a key. It is
+deliberately an honest-system check rather than a real lock: the signing secret
+ships inside the image, so anyone who reads this file can mint or bypass a key.
+That is intentional. It is NOT DRM: the weights sit on your own hardware, so
+there is nothing to truly lock.
 
 THE ONE RULE THAT OVERRIDES EVERYTHING
 --------------------------------------
-A paying, already-deployed customer must NEVER be blocked by this mechanism.
+A running deployment must NEVER be blocked by this mechanism.
 Not by a missing key, an expired key, a corrupted key, or a wrong system
 clock. Therefore the DEFAULT MODE IS FAIL-OPEN ("warn"): the server always
 answers; a bad/missing/expired key only produces a log line and a /health
@@ -24,7 +23,8 @@ time-boxed trials / POCs where you *want* access to lapse.
 MODES  (env JINA_LICENSE_MODE, default "warn")
 ----------------------------------------------
   warn     Default. Fail-open. Always serve. Log + /health report key state.
-           Ship SOLD customers in this mode: they can never be blocked.
+           This is the mode a production deployment runs in: it can never
+           block a request.
   enforce  Fail-closed. Return 403 on inference endpoints when the key is
            missing / expired (past grace) / invalid. For trials and POCs.
   off      No checking, no logging. Fully transparent.
@@ -36,7 +36,7 @@ MODES  (env JINA_LICENSE_MODE, default "warn")
 GRACE (enforce mode only)  (env JINA_LICENSE_GRACE_DAYS, default 14)
 -------------------------------------------------------------------
 Even in enforce mode, an expired key keeps working for this many days, logging
-loudly. This absorbs clock skew and renewal lag so a genuine customer is never
+loudly. This absorbs clock skew and renewal lag so a valid deployment is never
 cut off by a day-boundary or a wrong RTC. Set 0 for a hard cutoff at expiry.
 
 CRYPTO NOTES (for the curious - why this shape)
@@ -49,12 +49,12 @@ CRYPTO NOTES (for the curious - why this shape)
     30-second one-time codes for interactive 2FA against a live verifier. It
     is NOT suitable for a durable, offline, air-gapped license window, so we
     do not use it here.
-  * We use SYMMETRIC HMAC with a public secret on purpose (防君子不防小人). If
-    one ever wanted a real lock, the minimal upgrade is ASYMMETRIC signing
-    (e.g. Ed25519): ship only the PUBLIC key in the image so it can verify but
-    not mint keys, and keep the private key on the issuing side. That is a
-    deliberate non-goal today - it would not change the fact that the customer
-    holds the weights, and it adds key-management overhead for no real gain.
+  * We use SYMMETRIC HMAC with a public secret on purpose. If one ever wanted
+    a real lock, the minimal upgrade is ASYMMETRIC signing (e.g. Ed25519):
+    ship only the PUBLIC key in the image so it can verify but not mint keys,
+    and keep the private key on the issuing side. That is a deliberate
+    non-goal today - it would not change the fact that you hold the weights,
+    and it adds key-management overhead for no real gain.
 
 KEY FORMAT (compact, single line, copy-paste safe)
 --------------------------------------------------

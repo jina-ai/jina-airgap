@@ -37,7 +37,7 @@ How the pieces fit together — for engineers integrating or debugging jina-on-p
   │  docker run -d -p 8080:8080 jina/MODEL                          │
   │         │                                                       │
   │         ▼                                                       │
-  │  FastAPI on :8080  ─►  customer app (ES / LlamaIndex / curl)    │
+  │  FastAPI on :8080  ─►  your app (ES / LlamaIndex / curl)        │
   │  multi-schema API                                               │
   └─────────────────────────────────────────────────────────────────┘
 ```
@@ -101,7 +101,7 @@ sequenceDiagram
     participant HF as HuggingFace Hub
     participant Image as Docker image
     participant Deploy as Deploy (offline)
-    participant App as Customer app
+    participant App as Your app
 
     Build->>HF: download weights, tokenizer, code
     Build->>Build: patch code for offline
@@ -125,10 +125,10 @@ At runtime, any code path that would try to download a missing file fails immedi
 
 ```
 jina-on-prem.py (single file, stdlib only)
-- cmd_list      - browse models/catalog.json
-- cmd_bundle    - read catalog, write deps file, run docker build, save tar.gz
-- cmd_deploy    - docker load + docker run + health check
-- cmd_serve     - run server/app.py directly (skip Docker, if deps installed)
+- list      - browse the model catalog
+- bundle    - build an image and save it as a transferable tar.gz
+- deploy    - load the tar.gz, run it, wait for the health check
+- serve     - run the server directly, without Docker
 ```
 
 No third-party imports in the CLI. The model deps install inside the Docker image only.

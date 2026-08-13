@@ -321,7 +321,7 @@ def fit_task(
     way. Code-embeddings has no classification task and no role to fall back
     on, so there is no reading of the request this model can answer -- and
     ``task=classification`` is already a 400 on the native route. Returning
-    ``nl2code`` vectors instead would be the exact defect this rewrite exists
+    ``nl2code`` vectors instead would be the exact defect this server exists
     to remove, in a new place: a wrong answer with a 200 on it.
 
     Returning ``None`` means "no task", which is a real answer for three cases:

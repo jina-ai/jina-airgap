@@ -227,9 +227,9 @@ if model_revision:
 # /model_cache/modules/transformers_modules. If any are missing, the runtime
 # stages them on first load and transformers logs "A new version of the
 # following files was downloaded from <hub url>". Nothing is actually fetched
-# (HF_HUB_OFFLINE=1 makes that impossible), but it reads as an air-gap
-# violation to customers, and the runtime copy fails outright on a read-only
-# container filesystem.
+# (HF_HUB_OFFLINE=1 makes that impossible), but the runtime copy fails outright
+# on a read-only container filesystem, and the log line reads as an air-gap
+# violation.
 #
 # verify_staging.py resolves the module files directly instead of instantiating
 # the model, so it works for every model type, including the colbert/reranker
@@ -238,7 +238,7 @@ if model_revision:
 print("Verifying model code is pre-staged...")
 import subprocess
 
-# Detect by grepping the child's output for the literal string a customer would
+# Detect by grepping the child's output for the literal string an operator would
 # see. transformers sets propagate=False on its logger, so an in-process logging
 # handler on the root logger never sees this record.
 _verify = os.path.join(os.path.dirname(os.path.abspath(__file__)), "verify_staging.py")
@@ -257,9 +257,9 @@ if _res.returncode != 0:
 if "was downloaded from" in _output:
     print(
         "ERROR: model code was not fully pre-staged during the build.\n"
-        "The runtime would stage it on first load and log the warning below, which\n"
-        "reads as an air-gap violation to customers and fails outright on a\n"
-        "read-only container filesystem. Check the pre-load step above for the\n"
+        "The runtime would stage it on first load, which fails outright on a\n"
+        "read-only container filesystem and logs the warning below, which reads\n"
+        "as an air-gap violation. Check the pre-load step above for the\n"
         "exception that stopped it.\n",
         file=sys.stderr,
     )

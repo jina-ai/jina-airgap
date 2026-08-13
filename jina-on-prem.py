@@ -662,7 +662,7 @@ def cmd_keygen(args):
     # --category and --model write different claims; argparse keeps them
     # exclusive, and issue() refuses both anyway. The category is checked
     # against the frozen list here too, so a typo fails on this terminal
-    # instead of on the customer's image.
+    # instead of on the built image.
     if args.category:
         if args.category not in _license.CATEGORIES:
             err(f"Error: unknown category '{args.category}'", RED)
@@ -913,7 +913,7 @@ def make_parser():
         """),
     )
     keygen_p.add_argument("--sub", required=True, metavar="NAME",
-                          help="Who the license is issued to (customer/PM name)")
+                          help="Who the license is issued to: your organisation or account name")
     keygen_p.add_argument("--days", type=int, default=30,
                           help="Validity window in days (default: 30)")
     # Two claims, and a key carries exactly one, so the flags are exclusive.

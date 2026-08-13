@@ -37,7 +37,7 @@ This means: **same bundle = byte-identical embeddings forever**. You can verify 
 | Security CVE in a Python dep | `deps` versions | Pin to patched version in `catalog.json`, rebundle |
 | Bigger context or new task type | `server/app.py` | Rebundle |
 | New API schema added | `server/app.py` | Rebundle |
-| Customer wants to test a different model | new bundle for new model | New bundle, deploy alongside |
+| You want to test a different model | new bundle for new model | New bundle, deploy alongside |
 
 ## Zero-downtime rollout
 
@@ -128,7 +128,7 @@ If you're maintaining a fork or pinning custom deps:
 - huggingface_hub (rarely affects model behavior at runtime)
 - accelerate, einops (utility libs, low risk)
 
-When in doubt, pin. Easier to relax later than to debug a regression in customer prod.
+When in doubt, pin. Easier to relax later than to debug a regression in production.
 
 ## Rolling back
 
@@ -142,7 +142,7 @@ docker load < jina-MODEL-v1-cpu.tar.gz && docker run -d --name jina-blue -p 8080
 
 Keep the previous bundle's `.tar.gz` on disk (or in your artifact store) for at least one release cycle. Rollback is just another `docker load`.
 
-## Customer-side change control
+## Change control on your side
 
 In a regulated environment you will usually need to track:
 
@@ -154,7 +154,7 @@ In a regulated environment you will usually need to track:
 | Build date | `LABEL` could include build date if you set it |
 | Dependency lockfile | `models/catalog.json` `deps` block per model |
 
-Have these ready before submitting a change-management ticket. Customer security teams often want to attest that a specific bundle came from a known source.
+Have these ready before submitting a change-management ticket. Security teams often want to attest that a specific bundle came from a known source.
 
 ## Next
 

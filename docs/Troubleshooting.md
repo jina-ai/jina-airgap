@@ -20,7 +20,7 @@ unexpected shape
 empty result]
 ```
 
-Jump to a section: [Docker / install](#docker-permission-denied) - [L4 stockout](#l4-stockout) - [CUDA mismatch](#cuda-mismatch) - [OOM](#out-of-memory-on-gpu) - [Transformers version pins](#transformers-version-pins) - [GHCR auth](#prebuilt-pull-unauthorized) - [Wrong endpoint](#wrong-endpoint-returns-500) - [Verifying the air gap](#verifying-the-air-gap) - [Disk full](#disk-full-during-multi-model-build) - [Flash-attn build](#bundle-build-fails-on-flash-attn-compile) - [Spot preemption](#spot-instance-preempted-mid-build) - [Pushed image not visible](#oci-labels-missing-on-pushed-images) - [Reranker NaN](#empty--nan-embeddings-on-qwen3-reranker)
+Jump to a section: [Docker / install](#docker-permission-denied) - [L4 stockout](#l4-stockout) - [CUDA mismatch](#cuda-mismatch) - [OOM](#out-of-memory-on-gpu) - [Transformers version pins](#transformers-version-pins) - [GHCR auth](#prebuilt-pull-unauthorized) - [Wrong endpoint](#wrong-endpoint-returns-500) - [Verifying the air gap](#verifying-the-air-gap) - [Disk full](#disk-full-during-multi-model-build) - [Flash-attn build](#bundle-build-fails-on-flash-attn-compile) - [Reranker NaN](#empty--nan-embeddings-on-qwen3-reranker)
 
 ## Docker permission denied
 
@@ -57,16 +57,11 @@ The zone 'projects/PROJECT/zones/ZONE' does not have enough resources to fulfill
 'NULL:0/NULL:0/NULL:0 (state:STOCKOUT, sub-state:STOCKOUT, resource type:compute)'
 ```
 
-**Cause**: L4 GPUs are heavily oversubscribed. As of May 2026, all `us-central1-*`, `us-west1-*`, `us-east1-*`, `us-east4-*` were simultaneously out.
+**Cause**: L4 GPUs are heavily oversubscribed, and several US zones are commonly out at the same time.
 
-**Fix**: try zones in this order, picking the first that succeeds:
+**Fix**: retry in another zone, or fall back to another GPU type with quota in a zone you can get. A retry loop is at the bottom of [`scripts/bootstrap-gcp.sh`](https://github.com/jina-ai/jina-on-prem/blob/main/scripts/bootstrap-gcp.sh).
 
-1. `us-west1-a`, `us-east4-a` (cheapest egress to most clients)
-2. `europe-west4-a`, `europe-west1-b`
-3. `asia-southeast1-a` (Singapore - usually available)
-4. As a last resort, switch to A100 or T4 in a US zone with quota.
-
-A retry loop is at the bottom of [`scripts/bootstrap-gcp.sh`](https://github.com/jina-ai/jina-on-prem/blob/main/scripts/bootstrap-gcp.sh).
+No GPU is needed to build an image, including a GPU image, so a CPU-only instance avoids this entirely.
 
 ## Prebuilt pull unauthorized
 
@@ -105,7 +100,7 @@ docker run --platform linux/amd64 -p 8080:8080 ghcr.io/jina-ai/jina-on-prem/jina
 
 The flag is needed on both commands: `pull` chooses which image to fetch, `run` tells the daemon to emulate it. [`scripts/pull-prebuilt.sh`](https://github.com/jina-ai/jina-on-prem/blob/main/scripts/pull-prebuilt.sh) handles this for you. It pulls without naming a platform first, so you get a native image whenever one exists, and only falls back to `linux/amd64` when the registry has nothing for your architecture.
 
-Emulated output is correct but the throughput is a fraction of native, so treat this as a way to try the API, not to measure it. For actual development on a Mac, skip Docker and run the server directly - `python jina-on-prem.py serve --model jinaai/jina-embeddings-v5-text-nano` uses native arm64 PyTorch.
+Emulated output is correct but the throughput is a fraction of native, so treat this as a way to try the API, not to measure it. To develop against the API on a Mac, skip Docker and run the server directly: `python jina-on-prem.py serve --model jinaai/jina-embeddings-v5-text-nano` uses native arm64 PyTorch.
 
 ## CUDA mismatch
 
@@ -208,21 +203,6 @@ Use `-p 8080:8080` for the deployment you actually run, and `--network none` plu
 
 **Cause**: `flash-attn` requires `nvcc` (CUDA compiler), which isn't in the runtime-only base image. The Dockerfile uses the `-devel` variant of pytorch/pytorch which includes nvcc - if you've forked, make sure you're still on `pytorch/pytorch:2.5.1-cuda12.1-cudnn9-devel`.
 
-## Spot instance preempted mid-build
-
-**Symptom**: SSH disconnects, `gcloud compute instances list` shows TERMINATED.
-
-**Cause**: GCP spot/preemptible instances can be reclaimed any time.
-
-**Fix**: start bundles with `nohup` so disconnection doesn't kill the build:
-
-```bash
-nohup bash -c 'cd ~/jina-on-prem && python3 jina-on-prem.py bundle --model X --yes' > ~/bundle.log 2>&1 &
-disown
-```
-
-Reconnect later: `tail -f ~/bundle.log`. Docker images persist across restart; `/tmp` does not.
-
 ## Disk full during multi-model build
 
 **Symptom**: `no space left on device` after building two or three bundles.
@@ -237,14 +217,6 @@ docker image prune -f          # dangling intermediate images
 rm jina-OLDMODEL-*.tar.gz      # tarballs already transferred
 docker system df               # see what's left
 ```
-
-## OCI labels missing on pushed images
-
-**Symptom**: image pushed to GHCR but doesn't appear in the repo's package list.
-
-**Cause**: the `LABEL org.opencontainers.image.source=https://github.com/jina-ai/jina-on-prem` is missing from the Dockerfile.
-
-**Fix**: both `docker/Dockerfile.cpu` and `docker/Dockerfile.gpu` include this label. If you've forked, keep it. After fixing, retag and push - GitHub picks up the link on next push.
 
 ## Got something else?
 

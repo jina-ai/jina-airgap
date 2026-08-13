@@ -233,6 +233,7 @@ def main():
     parser.add_argument("--models", nargs="+", default=None, help="Subset of models to benchmark")
     parser.add_argument("--no-optimize", action="store_true", help="Disable runtime optimizations (baseline mode)")
     parser.add_argument("--batch-sizes", nargs="+", type=int, default=None, help="Test multiple batch sizes (e.g. 32 64 128)")
+    parser.add_argument("--output", default="benchmark_results.json", help="Where to write the JSON results")
     args = parser.parse_args()
 
     print("=" * 70)
@@ -281,7 +282,7 @@ def main():
                 except Exception as e:
                     print(f"  ERROR: {e}")
             results[model_id][result_key] = best_tok_s
-            if len(batch_sizes_to_test) > 1:
+            if len(batch_sizes_to_test) > 1 and best_tok_s is not None:
                 print(f"  Best batch size: {best_bs} -> {int(best_tok_s):,} tok/s")
 
     # Print summary table
@@ -326,17 +327,13 @@ def main():
         },
         "results": results,
     }
-    with open("/tmp/benchmark_results.json", "w") as f:
+    with open(args.output, "w") as f:
         json.dump(output, f, indent=2)
-    print("\nResults saved to /tmp/benchmark_results.json")
+    print(f"\nResults saved to {args.output}")
 
-    # Also print raw numbers for README update
-    print("\n--- README TABLE FORMAT ---")
-    print(f"CPU: {cpu_short} | GPU: NVIDIA L4 (30.3 TFLOPS FP16)")
     print()
-    print("| Model | CPU tok/s | GPU tok/s |")
+    print(f"| Model | CPU tok/s ({cpu_short}) | GPU tok/s ({gpu_info}) |")
     print("|-------|-----------|-----------|")
-    print(f"|       | {cpu_short} | NVIDIA L4 (30.3 TFLOPS FP16) |")
     for model_id, data in results.items():
         short_name = model_id.split("/")[-1]
         cpu_val = f"{int(data['cpu']):,}" if data['cpu'] is not None else "N/A"

@@ -37,7 +37,7 @@ docker load < jina-embeddings-v5-text-nano-cpu.tar.gz
 docker run -p 8080:8080 jina/jina-embeddings-v5-text-nano:cpu
 ```
 
-> **On a Mac (Apple Silicon)?** Prebuilt images are `linux/amd64` only, so a plain `docker pull` fails with `no matching manifest for linux/arm64/v8`. `pull-prebuilt.sh` handles this for you, falling back to `linux/amd64` only when the registry has nothing for your architecture; if you pull by hand, add the flag to both commands: `docker pull --platform linux/amd64 ...` and `docker run --platform linux/amd64 ...`. It then runs under Rosetta emulation, correct but slow - fine for a first look, not for a benchmark. For real Mac development skip Docker entirely and use `python jina-on-prem.py serve`.
+> **On a Mac (Apple Silicon)?** Prebuilt images are `linux/amd64` only, so a plain `docker pull` fails with `no matching manifest for linux/arm64/v8`. `pull-prebuilt.sh` handles this for you, falling back to `linux/amd64` only when the registry has nothing for your architecture; if you pull by hand, add the flag to both commands: `docker pull --platform linux/amd64 ...` and `docker run --platform linux/amd64 ...`. It then runs under Rosetta emulation, correct but slow - fine for a first look, not for a benchmark. To develop against the API on a Mac, skip Docker and run the server directly: `python jina-on-prem.py serve` uses native arm64 PyTorch.
 
 ### Bundle from scratch
 
@@ -155,7 +155,7 @@ Elasticsearch inference service drop-in: [Elasticsearch integration](https://git
 
 ## Licensing (time-sensitive keys)
 
-Optional offline entitlement signal: a signed, expiring key that gives sales/audit a visible "expires on X" control. Fully air-gapped (local HMAC check, no phone-home); issuing/renewing needs **no image rebuild** (key injected at run time).
+Optional offline entitlement signal: a signed, expiring key that records a visible "expires on X" date against a deployment. Fully air-gapped (local HMAC check, no phone-home); issuing/renewing needs **no image rebuild** (key injected at run time).
 
 ```bash
 python jina-on-prem.py keygen --sub acme-corp --days 90        # mint a 90-day key
@@ -163,7 +163,7 @@ docker run -e JINA_LICENSE_KEY=JINA-xxx.yyy -p 8080:8080 jina/MODEL:cpu
 curl -s http://localhost:8080/health   # shows license status; /health always open
 ```
 
-**Fail-open by default: a deployed customer is never blocked.** The default `warn` mode always serves - a missing/expired/invalid key only logs and shows in `/health`. Hard 403 blocking is opt-in via `JINA_LICENSE_MODE=enforce` (trials/POCs only), and even then an expired key survives a grace window. Compliance speed-bump, not DRM - the signing secret ships in the image (防君子不防小人). Details: [Licensing wiki](https://github.com/jina-ai/jina-on-prem/wiki/Licensing).
+**Fail-open by default: a running deployment is never blocked.** The default `warn` mode always serves - a missing/expired/invalid key only logs and shows in `/health`. Hard 403 blocking is opt-in via `JINA_LICENSE_MODE=enforce` (trials/POCs only), and even then an expired key survives a grace window. Compliance speed-bump, not DRM - the signing secret ships in the image, so this is an honest-system check rather than a lock. Details: [Licensing wiki](https://github.com/jina-ai/jina-on-prem/wiki/Licensing).
 
 ## Architecture
 
