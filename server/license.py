@@ -74,7 +74,7 @@ says how the value should be read:
 
   "model": "*"                             any model (the default)
   "model": "jina-embeddings-v5-text-nano"  one exact model id
-  "category": "reranker"                   one licence category, covering the
+  "category": "reranker"                   one license category, covering the
                                            models the catalog assigns to it
 
 A key carrying both is refused rather than resolved: whichever lost would leave
@@ -116,7 +116,7 @@ SCHEMA_VERSION = 2
 
 VALID_MODES = ("warn", "enforce", "off")
 
-# Licence categories: the coarse grouping a commercial licence is sold by. A key
+# License categories: the coarse grouping a commercial license is sold by. A key
 # names one of these in its "category" claim, or an exact model id (or "*") in
 # its "model" claim, and never both. See SCOPE in the module docstring.
 #
@@ -217,7 +217,7 @@ def inspect(key: str) -> dict:
 
 
 def category_of(model_id: str) -> str:
-    """The licence category this model is sold under, or "" if it cannot be read.
+    """The license category this model is sold under, or "" if it cannot be read.
 
     The catalog is the authority, not a rule applied here: the mapping is a
     commercial decision, and a container answers from the catalog baked into

@@ -94,7 +94,7 @@ JINA-eyJleHAiOjE3OTE...   <- this is the key
 |---|---|---|
 | `--sub` | Who the key is issued to, shown in `/health` and logs | required |
 | `--days` | Validity window in days | 30 |
-| `--category` | Restrict the key to one licence category: `text`, `multimodal`, `reranker`, `reader`. Covers every model the image's catalog assigns to it, including ones added later. | unset |
+| `--category` | Restrict the key to one license category: `text`, `multimodal`, `reranker`, `reader`. Covers every model the image's catalog assigns to it, including ones added later. | unset |
 | `--model` | Restrict the key to one exact model id. Mutually exclusive with `--category`. | `*` (any) |
 | `--secret` | Sign with a custom secret, matching the server's `JINA_LICENSE_SECRET` | public default |
 | `--json` | Emit key and claims as JSON | off |
@@ -131,7 +131,7 @@ curl -s http://localhost:8080/health | python3 -m json.tool
 
 That `license` block is what you show an auditor: a concrete, expiring, machine-checkable entitlement, produced entirely offline.
 
-The top-level `model` and `category` say what this image *is*: the model it runs, and the licence category that model is sold under. The `license` block says what your key *covers*, so a key scoped with `--category` shows a `category` there instead of a `model`. Reading the two together answers "is this deployment inside what we bought?" without decoding anything, and if the two categories disagree the key does not cover this image, with `reason` saying `model_not_licensed`.
+The top-level `model` and `category` say what this image *is*: the model it runs, and the license category that model is sold under. The `license` block says what your key *covers*, so a key scoped with `--category` shows a `category` there instead of a `model`. Reading the two together answers "is this deployment inside what we bought?" without decoding anything, and if the two categories disagree the key does not cover this image, with `reason` saying `model_not_licensed`.
 
 The top-level `category` is present even with no key set at all, so it is also how you check which category an image needs before buying anything.
 
@@ -172,7 +172,7 @@ No `docker build`, no re-transfer of the multi-GB bundle, and no downtime beyond
 | Work fully offline | Yes | Local HMAC check, no network |
 | Issue or renew without rebuilding the image | Yes | Runtime env var |
 | Restrict a key to a specific model | Yes | `keygen --model <id>` |
-| Restrict a key to a licence category | Yes | `keygen --category <name>`, covering the models the catalog assigns to it |
+| Restrict a key to a license category | Yes | `keygen --category <name>`, covering the models the catalog assigns to it |
 | Never block a running deployment | Yes | The default `warn` mode is fail-open |
 | Optionally block after expiry | Yes | `enforce` mode plus grace window |
 | Resist a determined user | **No** | The signing secret ships in the image, so a key can be minted or the check disabled. See below. |

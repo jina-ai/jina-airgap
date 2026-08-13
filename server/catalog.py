@@ -27,7 +27,7 @@ class ModelSpec:
     task_enum: tuple
     api_endpoint: str
     context: int
-    # The licence category this model is sold under, and the authority the gate
+    # The license category this model is sold under, and the authority the gate
     # compares a category-scoped key against. It is a stored field rather than
     # something derived from ``type`` and ``modality`` at read time because the
     # mapping is a commercial decision that must not drift: a container answers

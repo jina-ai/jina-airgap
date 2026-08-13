@@ -902,7 +902,7 @@ def make_parser():
         """),
         epilog=textwrap.dedent("""\
             Scope: a key covers any model by default. Restrict it to one
-            licence category (--category, what a commercial licence is sold
+            license category (--category, what a commercial license is sold
             by) or to one exact model id (--model). The two are exclusive.
 
             Examples:
@@ -919,7 +919,7 @@ def make_parser():
     # Two claims, and a key carries exactly one, so the flags are exclusive.
     scope_g = keygen_p.add_mutually_exclusive_group()
     scope_g.add_argument("--category", metavar="CATEGORY",
-                         help="Restrict key to one licence category: "
+                         help="Restrict key to one license category: "
                               "text, multimodal, reranker, reader")
     scope_g.add_argument("--model", metavar="MODEL_ID",
                          help="Restrict key to one exact model id "
