@@ -170,7 +170,7 @@ test_image() {
     # transformers logs "A new version of the following files was downloaded
     # from <hub url>" whenever it stages a trust_remote_code .py at runtime.
     # Nothing is fetched -- --network none makes that impossible -- but it means
-    # the build failed to pre-stage that code, and a customer reading the log
+    # the build failed to pre-stage that code, and anyone reading the log
     # cannot tell the difference from a real egress attempt.
     local LEAKED=0
     if docker logs "$NAME" 2>&1 | grep -q "was downloaded from"; then

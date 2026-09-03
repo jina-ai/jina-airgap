@@ -3,7 +3,7 @@
 Everything here is pure: it turns what ``engine`` produces into the exact JSON
 ``api.jina.ai`` returns. It lives apart from the route handlers because the
 provider adapters re-use the same encoders, and because the response shape is
-the one thing this rewrite exists to define in a single place.
+the one thing this server exists to define in a single place.
 
 The envelope, as ``api.jina.ai`` returns it:
 
@@ -61,13 +61,13 @@ def quantize(vector: np.ndarray, dtype: str) -> np.ndarray:
     binary / ubinary are one sign bit per dimension, packed MSB-first.
     `ubinary` is the packed byte as-is; `binary` is that byte minus 128 --
     offset binary, NOT a two's-complement reinterpretation. Measured against
-    api.jina.ai on jina-embeddings-v2-base-en with identical input: prod
+    api.jina.ai on jina-embeddings-v2-base-en with identical input: the hosted API
     returns ubinary [50, 193, 128, 255, ...] and binary [-78, 65, 0, 127, ...],
     which is exactly ubinary-128 and not the int8 view (which would give
     [50, -63, -128, -1, ...]).
 
     Everything stays float32 so the JSON form is floats in range rather than
-    integers, which is what prod emits.
+    integers, which is what the hosted API emits.
     """
     values = np.asarray(vector)
     if dtype == "float":

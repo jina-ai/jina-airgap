@@ -164,9 +164,10 @@ class EmbeddingsV3Family(SentenceTransformerFamily):
         return frozenset(name.partition(".")[0] for name in self.spec.task_enum)
 
     def resolve_task(self, task: Optional[str]) -> tuple[Optional[str], Optional[str]]:
-        # v3 no-task: prod runs the raw base xlm-roberta with no LoRA and no
-        # prefix when ``task`` is omitted (verified against api.jina.ai --
-        # prod_no_task vs prod_task=retrieval.passage cos~0.63). Skip the generic
+        # v3 no-task: the hosted API runs the raw base xlm-roberta with no LoRA
+        # and no prefix when ``task`` is omitted (verified against api.jina.ai:
+        # the ``prod_no_task`` and ``prod_task=retrieval.passage`` probes differ
+        # at cos~0.63). Skip the generic
         # default so we mirror that; otherwise the default ``retrieval`` would
         # map to retrieval.passage below and encode with the retrieval LoRA plus
         # the "Represent the document..." prefix.

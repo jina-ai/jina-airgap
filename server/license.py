@@ -3,18 +3,17 @@ Air-gapped license-key gate for Jina SM.
 
 WHAT THIS IS (and is not)
 -------------------------
-A lightweight, offline, time-bound *entitlement signal*. It gives sales and
-audit a visible "the deployment carries a key that expires" control, without a
-license server, without phone-home, and without rebuilding the image to issue
-or renew a key. It is deliberately 防君子不防小人 ("keep honest people honest,
-not a real lock"): the signing secret ships inside the image, so anyone who
-reads this file can mint or bypass a key. That is intentional. It is NOT DRM
-and must not be sold as such - the customer holds the model weights, so there
-is nothing to truly lock.
+A lightweight, offline, time-bound *entitlement signal*: a visible record that
+a deployment carries a key that expires, without a license server, without
+phone-home, and without rebuilding the image to issue or renew a key. It is
+deliberately an honest-system check rather than a real lock: the signing secret
+ships inside the image, so anyone who reads this file can mint or bypass a key.
+That is intentional. It is NOT DRM: the weights sit on your own hardware, so
+there is nothing to truly lock.
 
 THE ONE RULE THAT OVERRIDES EVERYTHING
 --------------------------------------
-A paying, already-deployed customer must NEVER be blocked by this mechanism.
+A running deployment must NEVER be blocked by this mechanism.
 Not by a missing key, an expired key, a corrupted key, or a wrong system
 clock. Therefore the DEFAULT MODE IS FAIL-OPEN ("warn"): the server always
 answers; a bad/missing/expired key only produces a log line and a /health
@@ -24,7 +23,8 @@ time-boxed trials / POCs where you *want* access to lapse.
 MODES  (env JINA_LICENSE_MODE, default "warn")
 ----------------------------------------------
   warn     Default. Fail-open. Always serve. Log + /health report key state.
-           Ship SOLD customers in this mode: they can never be blocked.
+           This is the mode a production deployment runs in: it can never
+           block a request.
   enforce  Fail-closed. Return 403 on inference endpoints when the key is
            missing / expired (past grace) / invalid. For trials and POCs.
   off      No checking, no logging. Fully transparent.
@@ -36,7 +36,7 @@ MODES  (env JINA_LICENSE_MODE, default "warn")
 GRACE (enforce mode only)  (env JINA_LICENSE_GRACE_DAYS, default 14)
 -------------------------------------------------------------------
 Even in enforce mode, an expired key keeps working for this many days, logging
-loudly. This absorbs clock skew and renewal lag so a genuine customer is never
+loudly. This absorbs clock skew and renewal lag so a valid deployment is never
 cut off by a day-boundary or a wrong RTC. Set 0 for a hard cutoff at expiry.
 
 CRYPTO NOTES (for the curious - why this shape)
@@ -49,19 +49,47 @@ CRYPTO NOTES (for the curious - why this shape)
     30-second one-time codes for interactive 2FA against a live verifier. It
     is NOT suitable for a durable, offline, air-gapped license window, so we
     do not use it here.
-  * We use SYMMETRIC HMAC with a public secret on purpose (防君子不防小人). If
-    one ever wanted a real lock, the minimal upgrade is ASYMMETRIC signing
-    (e.g. Ed25519): ship only the PUBLIC key in the image so it can verify but
-    not mint keys, and keep the private key on the issuing side. That is a
-    deliberate non-goal today - it would not change the fact that the customer
-    holds the weights, and it adds key-management overhead for no real gain.
+  * We use SYMMETRIC HMAC with a public secret on purpose. If one ever wanted
+    a real lock, the minimal upgrade is ASYMMETRIC signing (e.g. Ed25519):
+    ship only the PUBLIC key in the image so it can verify but not mint keys,
+    and keep the private key on the issuing side. That is a deliberate
+    non-goal today - it would not change the fact that you hold the weights,
+    and it adds key-management overhead for no real gain.
 
 KEY FORMAT (compact, single line, copy-paste safe)
 --------------------------------------------------
     JINA-<base64url(payload_json)>.<base64url(hmac_sha256(payload_json))>
 
     payload_json = {"sub": "<customer>", "iat": <unix>, "exp": <unix>,
-                    "model": "<model-id or *>", "v": 1}
+                    <one scope claim, see below>, "v": 2}
+
+A key issued against a purchase carries one further claim, "order_product_id".
+Nothing validates it; /health echoes it so a deployment can be tied back to what
+was bought. Unknown claims are ignored, so a key validates with or without it.
+
+SCOPE (exactly one claim, never both)
+-------------------------------------
+What a key covers rides in one of two claims, and which one is present is what
+says how the value should be read:
+
+  "model": "*"                             any model (the default)
+  "model": "jina-embeddings-v5-text-nano"  one exact model id
+  "category": "reranker"                   one license category, covering the
+                                           models the catalog assigns to it
+
+A key carrying both is refused rather than resolved: whichever lost would leave
+a key that looks valid and covers something nobody sold.
+
+Two claims rather than one string, so the kind lives in the structure instead of
+being guessed from the value. Spelled into one claim, a mistyped category was
+indistinguishable from a model id matching nothing, and the container answered
+model_not_licensed: a purchasing problem, apparently, when the truth was one
+wrong letter at issuance. It now answers unknown_category.
+
+VERSIONS
+--------
+v1 keys carry "model" only, holding "*" or an exact model id, and validate here
+unchanged: "model" keeps the meaning it always had, and v1 had no "category".
 """
 
 import base64
@@ -82,7 +110,29 @@ DEFAULT_SECRET = "jina-on-prem-symbolic-license-v1"
 
 PREFIX = "JINA-"
 
+# Payload schema version. Nothing branches on it; it exists so one shape can be
+# told apart from another. v2 split the scope into "category" and "model".
+SCHEMA_VERSION = 2
+
 VALID_MODES = ("warn", "enforce", "off")
+
+# License categories: the coarse grouping a commercial license is sold by. A key
+# names one of these in its "category" claim, or an exact model id (or "*") in
+# its "model" claim, and never both. See SCOPE in the module docstring.
+#
+# These strings are a frozen contract with every published image. Renaming one,
+# or moving a model from one category to another after an image carrying it has
+# shipped, invalidates keys already in the field. Adding a category for new
+# models is safe; changing an existing one is not.
+CATEGORIES = ("text", "multimodal", "reranker", "reader")
+
+# Operator-facing labels only. Never part of a key, so safe to reword.
+CATEGORY_LABELS = {
+    "text": "Text Embedding",
+    "multimodal": "Multimodal Embedding",
+    "reranker": "Reranker",
+    "reader": "ReaderLM / OCR",
+}
 
 
 def _secret() -> bytes:
@@ -125,20 +175,34 @@ def _sign_with(secret: bytes, payload_bytes: bytes) -> str:
     return _b64e(hmac.new(secret, payload_bytes, hashlib.sha256).digest())
 
 
-def issue(sub: str, days: int, model: str = "*", secret: Optional[str] = None) -> str:
+def issue(sub: str, days: int, model: Optional[str] = None,
+          category: Optional[str] = None, secret: Optional[str] = None) -> str:
     """Mint a license key valid for ``days`` from now.
+
+    Scope it with ``category`` or with ``model``, never both. Validation refuses
+    a key carrying both, so refusing to mint one says it earlier and cheaper.
+    Neither means any model, the same as ``model="*"``.
 
     Dependency-free and importable so ``jina-on-prem.py keygen`` can call it
     directly without importing the server stack.
     """
+    if category is not None and model is not None:
+        raise ValueError(
+            "scope a key to a category or to a model id, not both: "
+            f"got category={category!r} and model={model!r}"
+        )
     now = int(time.time())
     payload = {
         "sub": sub,
         "iat": now,
         "exp": now + int(days) * 86400,
-        "model": model,
-        "v": 1,
+        "v": SCHEMA_VERSION,
     }
+    # Exactly one, so the claim present is what says how to read the value.
+    if category is not None:
+        payload["category"] = category
+    else:
+        payload["model"] = "*" if model is None else model
     payload_bytes = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     sec = secret.encode("utf-8") if secret is not None else _secret()
     sig = _sign_with(sec, payload_bytes)
@@ -150,6 +214,31 @@ def inspect(key: str) -> dict:
     body = key[len(PREFIX):] if key.startswith(PREFIX) else key
     token, _, _sig = body.partition(".")
     return json.loads(_b64d(token))
+
+
+def category_of(model_id: str) -> str:
+    """The license category this model is sold under, or "" if it cannot be read.
+
+    The catalog is the authority, not a rule applied here: the mapping is a
+    commercial decision, and a container answers from the catalog baked into
+    its own image, so deriving it at read time would let a later edit re-scope
+    keys already in the field.
+
+    Imported inside the function rather than at module scope because
+    ``catalog`` reads a file when it loads, while this module has to stay
+    importable alone: ``jina-on-prem.py keygen`` imports ``license`` and never
+    ``catalog``. A failure returns "", refusing a category-scoped key rather
+    than guessing, and is not logged because this runs per request in enforce
+    mode.
+    """
+    if not model_id:
+        return ""
+    try:
+        import catalog
+
+        return catalog.spec_for(model_id).license_category or ""
+    except Exception:
+        return ""
 
 
 def validate(key: Optional[str], model_id: str = "") -> tuple[bool, str, dict]:
@@ -182,12 +271,30 @@ def validate(key: Optional[str], model_id: str = "") -> tuple[bool, str, dict]:
         if int(time.time()) >= exp:
             return False, "license_expired", payload
 
-        scope = payload.get("model", "*")
-        short = model_id.split("/")[-1] if model_id else ""
-        if scope not in ("*", "", model_id, short):
+        category = payload.get("category")
+        scope = payload.get("model")
+
+        if category is not None:
+            # A contradiction, not something to resolve: whichever lost would
+            # leave a key that silently covers something nobody sold.
+            if scope is not None:
+                return False, "conflicting_scope", payload
+            # Its own answer rather than falling through to model matching:
+            # almost always a typo, and model_not_licensed would send the
+            # reader after a purchasing problem instead.
+            if category not in CATEGORIES:
+                return False, "unknown_category", payload
+            if category == category_of(model_id):
+                return True, "ok", payload
             return False, "model_not_licensed", payload
 
-        return True, "ok", payload
+        # None is "no scope claim at all", which reads as any model: what a v1
+        # key written before the default was explicit would mean.
+        short = model_id.split("/")[-1] if model_id else ""
+        if scope in (None, "*", "", model_id, short):
+            return True, "ok", payload
+
+        return False, "model_not_licensed", payload
     except Exception as e:  # defensive: never let validation crash the gate
         logger.warning("license validate() unexpected error: %s", e)
         return False, "validation_error", {}
@@ -246,6 +353,20 @@ def status(key: Optional[str], model_id: str = "") -> dict:
     out = {"mode": m, "valid": ok, "reason": reason, "fail_open": m != "enforce"}
     if payload:
         out["licensed_to"] = payload.get("sub")
+        # Reported under the claim it came from, not renamed, so /health and a
+        # decoded key agree. A key can be valid and still not cover the model
+        # this container runs, and in warn mode nothing else says so.
+        if payload.get("category") is not None:
+            out["category"] = payload["category"]
+        else:
+            out["model"] = payload.get("model", "*")
+        # Not read by the gate at all; it rides along so support can tie a
+        # deployment back to the purchase without decoding the key by hand.
+        # Both spellings answer: a key carrying the older one would otherwise go
+        # quiet here, which reads as a key that never named a purchase.
+        order_product = payload.get("order_product_id") or payload.get("order_line_id")
+        if order_product:
+            out["order_product_id"] = order_product
         exp = payload.get("exp")
         if exp:
             out["expires"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(exp)))

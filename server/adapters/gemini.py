@@ -4,7 +4,7 @@ Contract from ai.google.dev/api/embeddings, fetched 2026-07-27.
 
 Two request forms are accepted. The flat `taskType` / `title` /
 `outputDimensionality` fields are deprecated but still work, and
-`embedContentConfig` is the current form; customer SDK versions are not
+`embedContentConfig` is the current form; client SDK versions are not
 something an air-gapped deployment can control, so both are read and the flat
 form is folded into the config.
 

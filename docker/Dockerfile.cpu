@@ -71,7 +71,7 @@ WORKDIR /app
 #
 # Server code is COPYed last, after every multi-GB layer, so editing it
 # invalidates only the final layer. With it first, one line of Python forced a
-# full torch reinstall and weight re-copy on all 58 images.
+# full torch reinstall and weight re-copy on every image built.
 COPY docker/model-requirements.txt /tmp/model-requirements.txt
 RUN TORCH_VER=$(grep -i '^torch==' /tmp/model-requirements.txt | head -1 | sed 's/torch//') && \
     TV_VER=$(grep -i '^torchvision==' /tmp/model-requirements.txt | head -1 | sed 's/torchvision//') && \

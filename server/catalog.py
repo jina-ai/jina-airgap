@@ -27,6 +27,17 @@ class ModelSpec:
     task_enum: tuple
     api_endpoint: str
     context: int
+    # The license category this model is sold under, and the authority the gate
+    # compares a category-scoped key against. It is a stored field rather than
+    # something derived from ``type`` and ``modality`` at read time because the
+    # mapping is a commercial decision that must not drift: a container answers
+    # from the catalog baked into its own image, so a rule edited later would
+    # silently re-scope keys already in the field.
+    #
+    # Defaulted rather than required because this is read at import time, and a
+    # KeyError here is a container that will not boot. An entry without the
+    # field simply matches no category, which refuses rather than guesses.
+    license_category: str = ""
     output_dim: Optional[int] = None
     matryoshka_dims: Optional[tuple] = None
     vram_gb: Optional[int] = None
@@ -75,6 +86,7 @@ def spec_for(model_id: str) -> ModelSpec:
         task_enum=tuple(entry.get("task_enum", [])),
         api_endpoint=entry["api_endpoint"],
         context=entry.get("context", 0),
+        license_category=entry.get("license_category", ""),
         output_dim=entry.get("output_dim"),
         matryoshka_dims=(
             tuple(entry["matryoshka_dims"]) if entry.get("matryoshka_dims") else None

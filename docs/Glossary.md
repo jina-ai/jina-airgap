@@ -4,7 +4,7 @@ Short definitions for terms used across the wiki.
 
 **Air-gap** — a network configuration where the host cannot reach the public internet (or even an internal network outside its security perimeter). Common in banks, government, defense, hospitals.
 
-**API schema** — the shape of a request/response. jina-on-prem exposes four simultaneously: OpenAI, Cohere, Google Gemini, Voyage AI. Each is a recognized industry contract, so customer apps usually work without code change.
+**API schema** — the shape of a request/response. jina-on-prem exposes four simultaneously: OpenAI, Cohere, Google Gemini, Voyage AI. Each is a recognized industry contract, so existing apps usually work without code change.
 
 ## B
 

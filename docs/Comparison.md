@@ -27,13 +27,13 @@ flowchart TB
 | Workload | LLM chat / generation | embeddings, reranking, readers |
 | Model format | GGUF (llama.cpp) | full PyTorch / SentenceTransformers |
 | Quantization story | aggressive (Q4_K_M is default) | bundle ships original precision |
-| Out-of-the-box embeddings | yes for some models, but not Jina-quality | yes, Jina v5/v4/v3 |
+| Out-of-the-box embeddings | yes, general-purpose models | yes, Jina v5/v4/v3 |
 | Out-of-the-box reranking | no | yes (`/v1/rerank`) |
 | Multi-schema API | OpenAI only | OpenAI + Cohere + Gemini + Voyage |
 | Air-gap story | run offline, but you still pull models from ollama.com | full air-gap bundling |
 | Sweet spot | LLM chat at the edge | embeddings + reranking in regulated environments |
 
-**Use Ollama for LLM chat. Use jina-on-prem for embeddings/reranking.** Run both on the same host if your customer needs both.
+**Use Ollama for LLM chat. Use jina-on-prem for embeddings/reranking.** Run both on the same host if you need both.
 
 ## jina-on-prem vs vLLM
 
@@ -73,12 +73,12 @@ flowchart TB
 | | Hosted (api.jina.ai) | jina-on-prem |
 |---|---|---|
 | Time to first request | under 1 minute (API key + curl) | minutes (pull + run) to hours (bundle) |
-| Data leaves customer | yes | no |
+| Data leaves your network | yes | no |
 | Works with no internet | no | yes |
 | Per-request cost | pay-as-you-go | hardware only |
 | Latency | network RTT to Jina | localhost / LAN |
-| Audit story | vendor compliance | customer owns the artifact |
-| Customer holds weights | no | yes |
+| Audit story | vendor compliance | you own the artifact |
+| You hold the weights | no | yes |
 
 **Use the hosted API if your deployment can reach `api.jina.ai` and per-request billing suits you.** Use jina-on-prem when it cannot, or when the data must not leave your network.
 

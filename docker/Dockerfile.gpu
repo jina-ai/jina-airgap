@@ -87,7 +87,7 @@ WORKDIR /app
 #
 # Server code is COPYed last, after every multi-GB layer, so editing it
 # invalidates only the final layer. With it first, one line of Python forced a
-# full dependency reinstall and weight re-copy on all 58 images.
+# full dependency reinstall and weight re-copy on every image built.
 COPY docker/model-requirements.txt /tmp/model-requirements.txt
 RUN grep -v '^\s*#' /tmp/model-requirements.txt | grep -v '^\s*$' | \
     grep -iv '^torch' | grep -iv '^flash-attn' | \

@@ -659,10 +659,25 @@ def cmd_keygen(args):
         err(f"Error: cannot import server/license.py: {e}", RED)
         sys.exit(EXIT_RUNTIME_ERROR)
 
+    # --category and --model write different claims; argparse keeps them
+    # exclusive, and issue() refuses both anyway. The category is checked
+    # against the frozen list here too, so a typo fails on this terminal
+    # instead of on the built image.
+    if args.category:
+        if args.category not in _license.CATEGORIES:
+            err(f"Error: unknown category '{args.category}'", RED)
+            err("       expected one of: " + ", ".join(
+                f"{c} ({_license.CATEGORY_LABELS[c]})" for c in _license.CATEGORIES))
+            sys.exit(EXIT_USER_ERROR)
+        category, model = args.category, None
+    else:
+        category, model = None, args.model or "*"
+
     key = _license.issue(
         sub=args.sub,
         days=args.days,
-        model=args.model or "*",
+        category=category,
+        model=model,
         secret=args.secret,
     )
     claims = _license.inspect(key)
@@ -675,8 +690,17 @@ def cmd_keygen(args):
 
     print_banner()
     err(f"{BOLD}License key minted{RESET}\n")
+    # Spell out which of the three shapes this is, so an exact model id passed
+    # where a category was meant is visible before the key is sent to anyone.
+    if category:
+        scope_desc = f"{category} ({_license.CATEGORY_LABELS[category]} category)"
+    elif model == "*":
+        scope_desc = "* (any model)"
+    else:
+        scope_desc = f"{model} (exact model id)"
+
     err(f"  Licensed to: {claims['sub']}")
-    err(f"  Model scope: {claims['model']}")
+    err(f"  Scope:       {scope_desc}")
     err(f"  Valid days:  {args.days}")
     err(f"  Expires:     {exp_h}")
     if args.secret:
@@ -877,18 +901,29 @@ def make_parser():
             compliance gate, not DRM (see server/license.py).
         """),
         epilog=textwrap.dedent("""\
+            Scope: a key covers any model by default. Restrict it to one
+            license category (--category, what a commercial license is sold
+            by) or to one exact model id (--model). The two are exclusive.
+
             Examples:
               python jina-on-prem.py keygen --sub acme-corp --days 30
+              python jina-on-prem.py keygen --sub acme --days 90 --category reranker
               python jina-on-prem.py keygen --sub acme --days 90 --model jina-embeddings-v5-text-nano
               python jina-on-prem.py keygen --sub trial --days 7 --json
         """),
     )
     keygen_p.add_argument("--sub", required=True, metavar="NAME",
-                          help="Who the license is issued to (customer/PM name)")
+                          help="Who the license is issued to: your organisation or account name")
     keygen_p.add_argument("--days", type=int, default=30,
                           help="Validity window in days (default: 30)")
-    keygen_p.add_argument("--model", metavar="MODEL_ID",
-                          help="Restrict key to one model id (default: * = any)")
+    # Two claims, and a key carries exactly one, so the flags are exclusive.
+    scope_g = keygen_p.add_mutually_exclusive_group()
+    scope_g.add_argument("--category", metavar="CATEGORY",
+                         help="Restrict key to one license category: "
+                              "text, multimodal, reranker, reader")
+    scope_g.add_argument("--model", metavar="MODEL_ID",
+                         help="Restrict key to one exact model id "
+                              "(default: neither = * = any model)")
     keygen_p.add_argument("--secret", metavar="SECRET",
                           help="Signing secret override (must match server JINA_LICENSE_SECRET)")
     keygen_p.add_argument("--json", action="store_true",

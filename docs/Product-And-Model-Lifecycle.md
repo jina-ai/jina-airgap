@@ -132,7 +132,7 @@ Because nothing is ever force-retired, our notices are there to help you *plan*,
 
 ## Licensing and the subscription term
 
-**Jina SM is a term-based subscription, not a perpetual license.** The customer buys the right to use the software for a defined term and must **renew to retain that right**, the same way other Elastic self-managed subscriptions work. Nothing on this page changes that.
+**Jina SM is a term-based subscription, not a perpetual license.** You buy the right to use the software for a defined term and must **renew to retain that right**, the same way other Elastic self-managed subscriptions work. Nothing on this page changes that.
 
 What the air-gap architecture changes is only the *enforcement mechanism*, not the *commercial obligation*:
 
@@ -141,7 +141,7 @@ What the air-gap architecture changes is only the *enforcement mechanism*, not t
 | **Commercial right to use** | The contractual license to run the software in production | **Term subscription** - time-bound, must be renewed |
 | **Technical continuity** | Whether the software keeps functioning at runtime | No kill switch, no phone-home, no forced-stop date |
 
-These are independent. The absence of a technical kill switch is an availability and reliability guarantee (a deployed bundle will not go dark mid-term because of something on our side); it is **not** a grant of perpetual rights. A customer whose term has lapsed is **out of subscription and must renew to remain licensed**, even though the software would still technically run. Continuing to run a bundle after the term has ended, without renewal, is a license compliance matter, not a technical state we enforce remotely.
+These are independent. The absence of a technical kill switch is an availability and reliability guarantee (a deployed bundle will not go dark mid-term because of something on our side); it is **not** a grant of perpetual rights. A deployment whose term has lapsed is **out of subscription and must be renewed to remain licensed**, even though the software would still technically run. Continuing to run a bundle after the term has ended, without renewal, is a license compliance matter, not a technical state we enforce remotely.
 
 The optional built-in [time-bound license key](Licensing) mirrors the term: it carries an expiry and can flag an out-of-term deployment, but by default it is fail-open and never blocks a running deployment, because entitlement is governed by the contract rather than by the software. See [Licensing](Licensing) for how the key works and where its capabilities end.
 

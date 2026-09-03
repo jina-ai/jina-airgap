@@ -157,18 +157,23 @@ class Family(ABC):
         logger.info(f"MODEL.encode() accepts task= kwarg: {self.accepts_task_kwarg}")
 
     def _load_tokenizer(self) -> None:
-        """Best-effort: only used for real tok/s measurement, so a model whose
-        tokenizer will not load standalone still serves."""
+        """Best-effort: a model whose tokenizer will not load standalone still
+        serves, on estimated token counts.
+
+        Not only a tok/s figure: the same count gates the over-length refusal,
+        so a failure here downgrades a guard. See ``engine._approximate_tokens``.
+        """
         try:
             from transformers import AutoTokenizer
 
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.spec.hf_repo, trust_remote_code=True
             )
-            logger.info("Tokenizer loaded for real tok/s measurement")
+            logger.info("Tokenizer loaded; token counts are exact")
         except Exception as e:
             logger.warning(
-                f"Could not load tokenizer ({e}), will use word-split approximation"
+                f"Could not load tokenizer ({e}); token counts will be estimated, "
+                f"which affects both reported usage and the over-length refusal"
             )
 
     def _finalize_cpu_bf16(self) -> None:

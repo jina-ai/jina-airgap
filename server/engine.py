@@ -5,6 +5,7 @@ Routes call in here; ``families`` decides what actually happens per model.
 
 import itertools
 import logging
+import re
 import threading
 import time
 from contextlib import nullcontext
@@ -198,6 +199,53 @@ def tokenizer():
     return _family.tokenizer if _family else None
 
 
+_approximation_warned = False
+
+
+def _warn_approximating(reason: str) -> None:
+    """Say once that token counts are estimates, not the tokenizer's answer.
+
+    Once rather than per call: this sits on the request path.
+    """
+    global _approximation_warned
+    if not _approximation_warned:
+        _approximation_warned = True
+        logger.warning(
+            "Token counts are approximate for this model (%s); this affects the "
+            "over-length refusal as well as reported usage.",
+            reason,
+        )
+
+
+# Escapes rather than the characters: three of these bounds are unassigned
+# codepoints with no glyph, so written literally the class renders as tofu and
+# a wrong bound is invisible.
+_DENSE_SCRIPT = re.compile(
+    "["
+    "\u3040-\u30ff"  # hiragana and katakana
+    "\u3400-\u4dbf"  # CJK unified ideographs extension A
+    "\u4e00-\u9fff"  # CJK unified ideographs
+    "\uac00-\ud7af"  # hangul syllables
+    "\uf900-\ufaff"  # CJK compatibility ideographs
+    "]"
+)
+
+
+def _approximate_tokens(text: str) -> int:
+    """Token estimate for when the tokenizer cannot answer.
+
+    This number decides ``_refuse_over_length``, so it errs high: counting low
+    admits input the model has no room for. Four characters per token is an
+    assumed floor for Latin rather than a measured ratio -- real ratios run
+    looser, and a model whose tokenizer loads is never counted from here. Dense
+    scripts are weighted near one per character, where a word split can return 1
+    for a whole sentence.
+    """
+    latin = len(_DENSE_SCRIPT.sub("", text))
+    dense = len(text) - latin
+    return max(len(text.split()), dense + latin // 4)
+
+
 def token_lengths(texts: list[str], cap: Optional[int] = None) -> list[int]:
     """Tokens the model will actually process.
 
@@ -213,10 +261,12 @@ def token_lengths(texts: list[str], cap: Optional[int] = None) -> list[int]:
         try:
             encoded = tokenizer(texts, add_special_tokens=True)
             lengths = [len(ids) for ids in encoded["input_ids"]]
-        except Exception:
-            lengths = [len(text.split()) for text in texts]
+        except Exception as exc:
+            _warn_approximating(f"tokenizer raised ({type(exc).__name__}: {exc})")
+            lengths = [_approximate_tokens(text) for text in texts]
     else:
-        lengths = [len(text.split()) for text in texts]
+        _warn_approximating("tokenizer did not load")
+        lengths = [_approximate_tokens(text) for text in texts]
     if cap:
         lengths = [min(length, cap) for length in lengths]
     return lengths
@@ -271,7 +321,7 @@ def fit_task(
     way. Code-embeddings has no classification task and no role to fall back
     on, so there is no reading of the request this model can answer -- and
     ``task=classification`` is already a 400 on the native route. Returning
-    ``nl2code`` vectors instead would be the exact defect this rewrite exists
+    ``nl2code`` vectors instead would be the exact defect this server exists
     to remove, in a new place: a wrong answer with a 200 on it.
 
     Returning ``None`` means "no task", which is a real answer for three cases:

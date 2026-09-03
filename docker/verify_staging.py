@@ -7,8 +7,8 @@ transformers imports custom model code from $HF_HOME/modules/transformers_module
 rather than straight out of the hub cache. Anything not already there gets copied
 on first load, and transformers logs that copy as "A new version of the following
 files was downloaded from <hub url>". Nothing is fetched (HF_HUB_OFFLINE=1 makes
-that impossible), but the line reads as an air-gap violation to customers, and the
-copy fails outright when the container runs with a read-only filesystem.
+that impossible), but the copy fails outright when the container runs with a
+read-only filesystem, and the log line reads as an air-gap violation.
 
 Resolves the module files instead of instantiating the model, so it covers every
 model type including the colbert (pylate) and reranker paths that the build's

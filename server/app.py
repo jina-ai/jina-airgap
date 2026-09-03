@@ -137,13 +137,13 @@ async def _timing_headers(request, call_next):
 
 
 # --- License gate (time-sensitive, offline, runtime-injected) ---
-# Symbolic entitlement signal for sales/audit, NOT DRM. The signing secret
-# ships in the image (see server/license.py): honest users get a visible
-# expiry knob, determined users can trivially bypass. 防君子不防小人.
+# Symbolic entitlement signal, NOT DRM. The signing secret ships in the image
+# (see server/license.py): it records a visible expiry, and anyone determined
+# can trivially bypass it. An honest-system check, not a lock.
 #
-# THE OVERRIDING RULE: a paying, already-deployed customer must never be
-# blocked by this. The DEFAULT mode is fail-open ("warn") - the server always
-# answers; a missing/expired/bad key only logs and shows up in /health. Hard
+# THE OVERRIDING RULE: a running deployment must never be blocked by this. The
+# DEFAULT mode is fail-open ("warn") - the server always answers; a
+# missing/expired/bad key only logs and shows up in /health. Hard
 # 403 blocking happens ONLY in opt-in "enforce" mode (for trials/POCs), and
 # even then an expired key keeps working through a grace window. /health and
 # docs are always open so Docker healthchecks and "is my key ok?" probes work.
@@ -196,6 +196,17 @@ async def _license_gate(request, call_next):
         "model_not_licensed": f"Key not valid for model '{settings.short_model_id}'.",
         "bad_signature": "License key signature invalid.",
         "malformed_license": "License key is malformed.",
+        # Its own message, because this is almost always a category mistyped at
+        # issuance rather than the purchasing problem the generic one implies.
+        "unknown_category": (
+            "License key names a category this image does not recognise: "
+            f"{d['payload'].get('category')!r}. Expected one of: "
+            f"{', '.join(_license.CATEGORIES)}. Ask for the key to be reissued."
+        ),
+        "conflicting_scope": (
+            "License key is scoped to both a category and a model id, which "
+            "contradict each other. Ask for the key to be reissued."
+        ),
     }.get(d["reason"], "License validation failed.")
     return JSONResponse(
         status_code=403,
@@ -221,12 +232,12 @@ async def startup():
         logger.warning(
             f"License not valid ({_lic.get('reason')}) and mode=enforce: inference endpoints "
             f"will 403 after the {_lic.get('grace_days')}-day grace window. This mode is for "
-            f"trials/POCs only - do NOT use it for sold, deployed customers."
+            f"trials and POCs only, not for a production deployment."
         )
     else:
         logger.warning(
             f"License not valid ({_lic.get('reason')}) - mode=warn (fail-open), serving normally. "
-            f"This never blocks a deployed customer; the key is only a visible expiry signal."
+            f"This never blocks a running deployment; the key is only a visible expiry signal."
         )
 
 
@@ -242,6 +253,9 @@ async def health(response: Response):
     resp = {
         "status": "ok" if ready else "unavailable",
         "model": settings.short_model_id,
+        # A fact about the model, from the catalog baked in here. What a key
+        # covers is under "license"; this is what one would have to cover.
+        "category": _license.category_of(settings.model_id),
         "device": settings.device,
         "ready": ready,
         "multimodal": engine.is_multimodal(),
